@@ -10,30 +10,46 @@ class TimelineChart {
 
         let minDt = d3.min(allElements, this.getPointMinDt);
         let maxDt = d3.max(allElements, this.getPointMaxDt);
+        // zoom out just slightly, to allow for a little space on either end of the timeline
+        let dateDelta = maxDt.getTime() - minDt.getTime();
+        let zoomOutPct = .02;
+        minDt = new Date(minDt.getTime() - (dateDelta * zoomOutPct));
+        maxDt = new Date(maxDt.getTime() + (dateDelta * zoomOutPct));
 
-        let elementWidth = options.width || element.clientWidth;
-        let elementHeight = options.height || element.clientHeight;
+        let elementWidth = options.width || element.clientWidth || 600;
+        let elementHeight = options.height || element.clientHeight || 200;
 
         let margin = {
-            top: 0,
+            top: 20,
             right: 0,
-            bottom: 20,
+            bottom: 0,  // set to about 20 for a bottom-aligned axis
             left: 0
         };
 
         let width = elementWidth - margin.left - margin.right;
         let height = elementHeight - margin.top - margin.bottom;
 
-        let groupWidth = (options.hideGroupLabels)? 0: 200;
+        // Width of the group label area
+        let groupWidth = options.hideGroupLabels ? 0 : 400;
+        // Height of each section containing a horizontal series.  By default, fit each series into the available vertical space.
+        let groupHeight = height / data.length;
+
+        // If the groupHeight option is set, then use its value for the height of each series, and set the total height accordingly.
+        if (!!options.groupHeight)
+        {
+            groupHeight = options.groupHeight;
+            height = groupHeight * data.length;
+        }
 
         let x = d3.time.scale()
             .domain([minDt, maxDt])
             .range([groupWidth, width]);
 
+        // X axis ticks
         let xAxis = d3.svg.axis()
             .scale(x)
-            .orient('bottom')
-            .tickSize(-height);
+            .orient('top') // set to 'bottom' for a bottom-aligned axis and to 'top' for a top-aligned axis
+            .tickSize(height); // set to height for a bottom-aligned axis and to -height for a top-aligned axis
 
         let zoom = d3.behavior.zoom()
             .x(x)
@@ -62,6 +78,7 @@ class TimelineChart {
             .attr('height', height)
             .attr('width', width - groupWidth)
 
+        // Axis with labels and ticks
         svg.append('g')
             .attr('class', 'x axis')
             .attr('transform', 'translate(0,' + height + ')')
@@ -75,7 +92,7 @@ class TimelineChart {
                 .attr("y2", height);
         }
 
-        let groupHeight = height / data.length;
+        // horizontal lines between groups
         let groupSection = svg.selectAll('.group-section')
             .data(data)
             .enter()
@@ -90,20 +107,23 @@ class TimelineChart {
                 return groupHeight * (i + 1);
             });
 
+        // group label text (for each series)
         if (!options.hideGroupLabels) {
             let groupLabels = svg.selectAll('.group-label')
                 .data(data)
                 .enter()
                 .append('text')
                 .attr('class', 'group-label')
-                .attr('x', 0)
+                .attr('x', '0.5em') //0)
                 .attr('y', (d, i) => {
-                    return (groupHeight * i) + (groupHeight / 2) + 5.5;
+                    return (groupHeight * i) + (groupHeight / 2) ; //+ 5.5;
                 })
                 .attr('dx', '0.5em')
-                .text(d => d.label);
+                .attr('dy', '0.5em')
+                .text(d => d.label)
+                .call(wrap, groupWidth);
 
-            let lineSection = svg.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', height).attr('stroke', 'black');
+            let lineSection = svg.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', height).attr('stroke', 'orange');
         }
 
         let groupIntervalItems = svg.selectAll('.group-interval-item')
@@ -127,9 +147,10 @@ class TimelineChart {
             .attr('y', intervalBarMargin)
             .attr('x', (d) => x(d.from));
 
+        // interval text
         let intervalTexts = groupIntervalItems
             .append('text')
-            .text(d => d.label)
+            .text(d => d.label || '')  //  (typeof(d.label) === 'function' ? d.label(d) : d.label) || '')
             .attr('fill', 'white')
             .attr('class', withCustom('interval-text'))
             .attr('y', (groupHeight / 2) + 5)
@@ -153,13 +174,15 @@ class TimelineChart {
             .attr('class', withCustom('dot'))
             .attr('cx', d => x(d.at))
             .attr('cy', groupHeight / 2)
-            .attr('r', 5);
+            .attr('r', 7)
+            .on('click', (d) => { !d.onClick || d.onClick(d); });
 
         if (options.tip) {
             if (d3.tip) {
                 let tip = d3.tip().attr('class', 'd3-tip').html(options.tip);
                 svg.call(tip);
-                dots.on('mouseover', tip.show).on('mouseout', tip.hide)
+                dots.on('mouseover', tip.show).on('mouseout', tip.hide);
+                intervals.on('mouseover', tip.show).on('mouseout', tip.hide);
             } else {
                 console.error('Please make sure you have d3.tip included as dependency (https://github.com/Caged/d3-tip)');
             }
@@ -171,6 +194,41 @@ class TimelineChart {
             setInterval(updateNowMarker, options.timerTickInterval);
         }
 
+        function wrap(text, width, anchorPosition) 
+        {
+            text.each(function() {
+                var text = d3.select(this),
+                words = text.text().split(/\s+/).reverse(),
+                word,
+                line = [],
+                lineNumber = 0,
+                lineHeight = 1.1, // ems
+                y = text.attr("y"),
+                dx = parseFloat(text.attr("dx")),
+                dy = parseFloat(text.attr("dy")),
+                lines = [];
+                var tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
+                while (word = words.pop()) 
+                {
+                    line.push(word);
+                    tspan.text(line.join(" "));
+                    if (tspan.node().getComputedTextLength() > width) 
+                    {
+                        line.pop();
+                        tspan.text(line.join(" "));
+                        line = [word];
+                        lines.push(line);
+                        tspan = text.append("tspan")
+                            .attr("x", 0)
+                            .attr("y", y)
+                            .attr("dx", dx + "em")
+                            .attr("dy", ++lineNumber * lineHeight + dy + "em")
+                            .text(word);
+                    }
+                }
+            });
+        }
+      
         function updateNowMarker() {
             let nowX = x(new Date());
 
@@ -223,15 +281,18 @@ class TimelineChart {
                 }).text(function(d) {
                     var positionData = getTextPositionData.call(this, d);
                     var percent = (positionData.width - options.textTruncateThreshold) / positionData.textWidth;
+                    // (typeof(d.label) === 'function' ? d.label(d) : d.label) || ''
+                    var labelText = d.label || ''; //typeof(d.label)==="string" ? d.label : typeof(d.label)==="function" ? d.label(d) : '';
                     if (percent < 1) {
                         if (positionData.width > options.textTruncateThreshold) {
-                            return d.label.substr(0, Math.floor(d.label.length * percent)) + '...';
+                            //return d.label.substr(0, Math.floor(d.label.length * percent)) + '...';
+                            return labelText.substr(0, Math.floor(labelText.length * percent)) + '...';
                         } else {
                             return '';
                         }
                     }
 
-                    return d.label;
+                    return labelText;
                 });
 
             function getTextPositionData(d) {
@@ -277,3 +338,4 @@ TimelineChart.TYPE = {
 };
 
 module.exports = TimelineChart;
+ 

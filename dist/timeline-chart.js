@@ -53,25 +53,41 @@
 
             var minDt = d3.min(allElements, this.getPointMinDt);
             var maxDt = d3.max(allElements, this.getPointMaxDt);
+            // zoom out just slightly, to allow for a little space on either end of the timeline
+            var dateDelta = maxDt.getTime() - minDt.getTime();
+            var zoomOutPct = .02;
+            minDt = new Date(minDt.getTime() - dateDelta * zoomOutPct);
+            maxDt = new Date(maxDt.getTime() + dateDelta * zoomOutPct);
 
-            var elementWidth = options.width || element.clientWidth;
-            var elementHeight = options.height || element.clientHeight;
+            var elementWidth = options.width || element.clientWidth || 600;
+            var elementHeight = options.height || element.clientHeight || 200;
 
             var margin = {
-                top: 0,
+                top: 20,
                 right: 0,
-                bottom: 20,
+                bottom: 0, // set to about 20 for a bottom-aligned axis
                 left: 0
             };
 
             var width = elementWidth - margin.left - margin.right;
             var height = elementHeight - margin.top - margin.bottom;
 
-            var groupWidth = options.hideGroupLabels ? 0 : 200;
+            // Width of the group label area
+            var groupWidth = options.hideGroupLabels ? 0 : 400;
+            // Height of each section containing a horizontal series.  By default, fit each series into the available vertical space.
+            var groupHeight = height / data.length;
+
+            // If the groupHeight option is set, then use its value for the height of each series, and set the total height accordingly.
+            if (!!options.groupHeight) {
+                groupHeight = options.groupHeight;
+                height = groupHeight * data.length;
+            }
 
             var x = d3.time.scale().domain([minDt, maxDt]).range([groupWidth, width]);
 
-            var xAxis = d3.svg.axis().scale(x).orient('bottom').tickSize(-height);
+            // X axis ticks
+            var xAxis = d3.svg.axis().scale(x).orient('top') // set to 'bottom' for a bottom-aligned axis and to 'top' for a top-aligned axis
+            .tickSize(height); // set to height for a bottom-aligned axis and to -height for a top-aligned axis
 
             var zoom = d3.behavior.zoom().x(x).on('zoom', zoomed);
 
@@ -81,27 +97,30 @@
 
             svg.append('rect').attr('class', 'chart-bounds').attr('x', groupWidth).attr('y', 0).attr('height', height).attr('width', width - groupWidth);
 
+            // Axis with labels and ticks
             svg.append('g').attr('class', 'x axis').attr('transform', 'translate(0,' + height + ')').call(xAxis);
 
             if (options.enableLiveTimer) {
                 self.now = svg.append('line').attr('clip-path', 'url(#chart-content)').attr('class', 'vertical-marker now').attr("y1", 0).attr("y2", height);
             }
 
-            var groupHeight = height / data.length;
+            // horizontal lines between groups
             var groupSection = svg.selectAll('.group-section').data(data).enter().append('line').attr('class', 'group-section').attr('x1', 0).attr('x2', width).attr('y1', function (d, i) {
                 return groupHeight * (i + 1);
             }).attr('y2', function (d, i) {
                 return groupHeight * (i + 1);
             });
 
+            // group label text (for each series)
             if (!options.hideGroupLabels) {
-                var groupLabels = svg.selectAll('.group-label').data(data).enter().append('text').attr('class', 'group-label').attr('x', 0).attr('y', function (d, i) {
-                    return groupHeight * i + groupHeight / 2 + 5.5;
-                }).attr('dx', '0.5em').text(function (d) {
+                var groupLabels = svg.selectAll('.group-label').data(data).enter().append('text').attr('class', 'group-label').attr('x', '0.5em') //0)
+                .attr('y', function (d, i) {
+                    return groupHeight * i + groupHeight / 2; //+ 5.5;
+                }).attr('dx', '0.5em').attr('dy', '0.5em').text(function (d) {
                     return d.label;
-                });
+                }).call(wrap, groupWidth);
 
-                var lineSection = svg.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', height).attr('stroke', 'black');
+                var lineSection = svg.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', height).attr('stroke', 'orange');
             }
 
             var groupIntervalItems = svg.selectAll('.group-interval-item').data(data).enter().append('g').attr('clip-path', 'url(#chart-content)').attr('class', 'item').attr('transform', function (d, i) {
@@ -120,9 +139,11 @@
                 return x(d.from);
             });
 
+            // interval text
             var intervalTexts = groupIntervalItems.append('text').text(function (d) {
-                return d.label;
-            }).attr('fill', 'white').attr('class', withCustom('interval-text')).attr('y', groupHeight / 2 + 5).attr('x', function (d) {
+                return d.label || '';
+            }) //  (typeof(d.label) === 'function' ? d.label(d) : d.label) || '')
+            .attr('fill', 'white').attr('class', withCustom('interval-text')).attr('y', groupHeight / 2 + 5).attr('x', function (d) {
                 return x(d.from);
             });
 
@@ -136,13 +157,16 @@
 
             var dots = groupDotItems.append('circle').attr('class', withCustom('dot')).attr('cx', function (d) {
                 return x(d.at);
-            }).attr('cy', groupHeight / 2).attr('r', 5);
+            }).attr('cy', groupHeight / 2).attr('r', 7).on('click', function (d) {
+                !d.onClick || d.onClick(d);
+            });
 
             if (options.tip) {
                 if (d3.tip) {
                     var tip = d3.tip().attr('class', 'd3-tip').html(options.tip);
                     svg.call(tip);
                     dots.on('mouseover', tip.show).on('mouseout', tip.hide);
+                    intervals.on('mouseover', tip.show).on('mouseout', tip.hide);
                 } else {
                     console.error('Please make sure you have d3.tip included as dependency (https://github.com/Caged/d3-tip)');
                 }
@@ -152,6 +176,34 @@
 
             if (options.enableLiveTimer) {
                 setInterval(updateNowMarker, options.timerTickInterval);
+            }
+
+            function wrap(text, width, anchorPosition) {
+                text.each(function () {
+                    var text = d3.select(this),
+                        words = text.text().split(/\s+/).reverse(),
+                        word,
+                        line = [],
+                        lineNumber = 0,
+                        lineHeight = 1.1,
+                        // ems
+                    y = text.attr("y"),
+                        dx = parseFloat(text.attr("dx")),
+                        dy = parseFloat(text.attr("dy")),
+                        lines = [];
+                    var tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
+                    while (word = words.pop()) {
+                        line.push(word);
+                        tspan.text(line.join(" "));
+                        if (tspan.node().getComputedTextLength() > width) {
+                            line.pop();
+                            tspan.text(line.join(" "));
+                            line = [word];
+                            lines.push(line);
+                            tspan = text.append("tspan").attr("x", 0).attr("y", y).attr("dx", dx + "em").attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
+                        }
+                    }
+                });
             }
 
             function updateNowMarker() {
@@ -213,15 +265,18 @@
                 }).text(function (d) {
                     var positionData = getTextPositionData.call(this, d);
                     var percent = (positionData.width - options.textTruncateThreshold) / positionData.textWidth;
+                    // (typeof(d.label) === 'function' ? d.label(d) : d.label) || ''
+                    var labelText = d.label || ''; //typeof(d.label)==="string" ? d.label : typeof(d.label)==="function" ? d.label(d) : '';
                     if (percent < 1) {
                         if (positionData.width > options.textTruncateThreshold) {
-                            return d.label.substr(0, Math.floor(d.label.length * percent)) + '...';
+                            //return d.label.substr(0, Math.floor(d.label.length * percent)) + '...';
+                            return labelText.substr(0, Math.floor(labelText.length * percent)) + '...';
                         } else {
                             return '';
                         }
                     }
 
-                    return d.label;
+                    return labelText;
                 });
 
                 function getTextPositionData(d) {

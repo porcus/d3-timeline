@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>D3 Timeline Chart</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/0.0.1/prism.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flexboxgrid/6.3.1/flexboxgrid.min.css" />
+    <link rel="stylesheet" href="https://rawgithub.com/Caged/d3-tip/master/examples/example-styles.css" />
+    <link rel="stylesheet" href="../dist/timeline-chart.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+    <div ckass="page-section">
+        <div class="row">
+            <div class="col-xs-12">
+                <div class="heading">NOTES</div>
+                <div class="note">This is an example of what an SLA timeline visualization might look like.  It is anticipated that something like this could be used by both users and employees alike.</div>
+                <div class="note">All times shown relative to the user's site's time zone as of the latest event (i.e. Central).</div>
+                <div class="note">There are a number of layout issues that haven't been addressed -- especially related to text labels.  Please try to ignore these for now.  Also, if you resize the window, refresh the page afterwards to fix the layout of the chart.</div>
+                <div class="note">Use the mouse to navigate.  Zoom in and out with the scroll wheel.  Click and drag to move forward/backward in time.  Hover over points and intervals to get more information about each one.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+
+    </div>
+
+    <div ckass="page-section">
+        <div class="row">
+            <div class="col-xs-12">
+                <div class="box-row" id="chart1" style="height: 400px; border: solid 1px #444; overflow-y: overlay;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div ckass="page-section">
+        <div class="row">
+            <div class="col-xs-12">
+                <div class="box-row" id="chart2" style="height: 600px; border: solid 1px #444; overflow-y: overlay;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div ckass="page-section">
+
+        <div class="row">
+            <div class="col-xs" >
+                <div id="event-details" class="box details-container" style="min-height: 300px;"></div>
+            </div>
+            <div class="col-xs" >
+                <div id="snapshot-details" class="box details-container" style="min-height: 300px;"></div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/0.0.1/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.16/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-tip/0.6.7/d3-tip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.20.1/moment.min.js"></script>
+    <script src="../dist/timeline-chart.js"></script>
+
+    <script id="code">
+
+        'use strict';
+
+        const chartContainer1 = document.getElementById('chart1');
+        const chartContainer2 = document.getElementById('chart2');
+        const selectedEventsContainer = document.getElementById('event-details');
+        const selectedSnapshotContainer = document.getElementById('snapshot-details');
+
+        var createLabelFromIntervalDuration = function(d){
+            return formatDuration(d.to, d.from);
+        };
+
+        function formatDate(date) {
+            //return moment(date).format('MMMM Do YYYY, h:mm:ss.SSSS a');
+            return moment(date).format('YYYY-MM-DD hh:mm:ss.SSSS a');
+        }
+
+        function initializeTimeline()
+        {
+            var formatLabelForTipHtml = function(label) {
+                return (label || '').replace(/ /g, '&nbsp;').replace(/\\n/g, '<br>');
+            };
+            var formatDuration = function(later, earlier) {
+                var msDiff = moment(later).diff(moment(earlier));
+                var duration = moment.duration(msDiff);
+                var parts = [
+                    duration._data.years ? duration._data.years+' year(s)' : null,
+                    duration._data.months ? duration._data.months+' month(s)' : null,
+                    duration._data.days ? duration._data.days+' day(s)' : null,
+                    duration._data.hours ? duration._data.hours+' hour(s)' : null,
+                    duration._data.minutes ? duration._data.minutes+' minute(s)' : null,
+                    duration._data.seconds ? duration._data.seconds+' second(s)' : null
+                ].filter(function(x){return x!=null;});
+                return parts.join(' ');
+            };
+
+            // build a default label for intervals that don't have a label value set
+            timelineData.forEach(function(g, gi) { 
+                g.data.forEach(function(d, i) { 
+                    if (d.type === TimelineChart.TYPE.INTERVAL && !d.label)
+                        d.label = formatDuration(d.to, d.from); 
+                });
+            });
+
+            var formatTipText = function(d) {
+                    // if d.label is a fn, call it now.
+                    var lbl = typeof(d.label) == 'function' ? formatLabelForTipHtml(d.label(d)+'') : typeof(d.label)=='string' ? formatLabelForTipHtml(d.label) : '(no label)';
+                    // include "at" time for points or from/to time range for intervals with label
+                    return !!d.at ? 
+                        lbl+'<br><br>Time: '+formatDate(d.at) : 
+                        lbl+'<br><br>From: '+formatDate(d.from)+'<br>To: '+formatDate(d.to)+'<br>Duration: '+formatDuration(d.to, d.from);
+                };
+
+            const timeline = new TimelineChart(chartContainer1, timelineData, {
+                //enableLiveTimer: true, 
+                tip: formatTipText
+            }); //.onVizChange(e => console.log(e));
+
+
+            const timerTimeline = new TimelineChart(chartContainer2, caseTimerTimelineData, {
+                //enableLiveTimer: true, 
+                tip: formatTipText,
+                groupHeight: 60
+            }); //.onVizChange(e => console.log(e));
+        }
+
+        function displayEventDetails(events)
+        {
+            // remove all elements of the container
+            while (selectedEventsContainer.firstChild) {
+                selectedEventsContainer.removeChild(selectedEventsContainer.firstChild);
+            }
+
+            // case timer event container
+            let selection = d3.select(selectedEventsContainer).append('div')
+                .selectAll('.case-timer-event')
+                .data(events);
+
+            //caseTimerEventSelection.exit().remove();
+
+            let caseTimerEventSelection = selection.enter()
+                .call(renderEvent);
+
+            function renderEvent()
+            {
+                //this.attr('style', 'color:red');
+                this
+                    .append('div')
+                    .attr('class', 'case-timer-event')
+                    .call(d => renderProperty.bind(d)("Event Identifier", d => d.EventIdentifierString))
+                    .call(d => renderProperty.bind(d)("Is Derived Event", d => d.IsDerived))
+                    .call(d => renderProperty.bind(d)("Is Inherited Event", d => d.IsInherited))
+                    .call(d => renderProperty.bind(d)("Is Creation Event", d => d.IsCaseTimerCreationEvent))
+                    .call(d => renderProperty.bind(d)("App Identifier", d => d.AppIdentifier))
+                    .call(d => renderProperty.bind(d)("Event Time", d => d.EventTime))
+                    .call(d => renderProperty.bind(d)("Id", d => d.Id))
+                    .call(d => renderProperty.bind(d)("Snapshot", d => d.CaseTimerSnapshot, d => displaySnapshotDetails(d.CaseTimerSnapshot)));
+            }
+
+        }
+
+        function renderProperty(propertyLabel, propertyValueSelector, onClick)
+        {
+            let caseTimerProperty = this
+                .append('div')
+                .attr('class', 'case-timer-event-property');
+            let label = caseTimerProperty
+                .append('div')
+                .attr('class', 'case-timer-event-property-label')
+                .text(propertyLabel)
+            let caseTimerPropertyValue = caseTimerProperty
+                .append('div')
+                .attr('class', 'case-timer-event-property-value')
+                .html(d => {
+                    var propertyValue = propertyValueSelector(d);
+
+                    if (typeof propertyValue == 'string')
+                    {
+                        return propertyValue;
+                    }
+                    else if (typeof propertyValue == 'boolean')
+                    {
+                        return propertyValue;
+                    }
+                    else if (propertyValue.constructor == (new Date()).constructor)
+                    {
+                        return formatDate(propertyValue);
+                    }
+                    else if(!!onClick)
+                    {
+                        return "(click here to view)";
+                    }
+                    return '<em>(no value resolver defined)</em>'
+                })
+                .on("click", (d) => { 
+                    if (!!onClick)
+                    {
+                        onClick(d); 
+                    }
+                });
+        }
+
+
+        function displaySnapshotDetails(caseTimerSnapshot)
+        {
+            console.log(caseTimerSnapshot);
+            
+            // remove all elements of the container
+            while (selectedSnapshotContainer.firstChild) {
+                selectedSnapshotContainer.removeChild(selectedSnapshotContainer.firstChild);
+            }
+
+            // case timer event container
+            let selection = d3.select(selectedSnapshotContainer).append('div')
+                .selectAll('.case-timer-snapshot')
+                .data([caseTimerSnapshot]);
+
+            //caseTimerEventSelection.exit().remove();
+
+            let caseTimerSnapshotSelection = selection.enter();
+                //.call(renderEvent);
+
+            caseTimerSnapshotSelection.append('div')
+                .attr('class', 'case-timer-snapshot')
+                .call(d => renderProperty.bind(d)("Id", d => d.Id))
+                .call(d => renderProperty.bind(d)("Is Derived", d => d.IsDerived))
+                .call(d => renderProperty.bind(d)("Snapshot Time", d => d.SnapshotTime));
+                //.call(d => renderProperty.bind(d)("Data: ", d => d.SnapshotData.))
+        }
+
+        // Executes after references have been restored.
+        function normalizeProperties(caseTimerDataArray)
+        {
+            var convertDateProperties = function(obj, propertyNamesArray)
+            {
+                if (!obj) return;
+                propertyNamesArray.forEach(pn => {
+                    var value = obj[pn];
+                    if (value !== null && typeof value === 'string')
+                        obj[pn] = new Date(value);
+                });
+            };
+
+            caseTimerDataArray.forEach(ct => {
+                ct.Events.forEach(e => {
+                    convertDateProperties(e, [ "EventTime", "LastModified" ]);
+                    convertDateProperties(e.CaseTimerSnapshot, [ "SnapshotTime", "LastModified" ]);
+                    var ssd = e.CaseTimerSnapshot.SnapshotData;
+                    convertDateProperties(ssd, [ "SnapshotTime", "LastModified" ]);
+                    convertDateProperties(ssd.CaseTimer, [ "LastCalculated", "LastModified", "Started", "Stopped" ]);
+                    convertDateProperties(ssd.Sla, [ "EstimatedNextControlPointDate", "EstimatedTargetResolutionDate", "LastModified" ]);
+                });
+                convertDateProperties(ct, [ "LastCalculated", "LastModified", "Started", "Stopped" ]);
+            });
+        }
+
+        function restoreReferencesInCaseTimerObjectGraph(originalCaseTimerArray)
+        {
+            // normalize data
+            caseTimerDataArray.forEach(ct => 
+            {
+                ct.Events.forEach(e => 
+                {
+                    // link the case timer events to the case timer that it belongs to
+                    e.CaseTimer = ct;
+
+
+                    // Share Case/CaseTimer data, depending upon whether an SLA is present.
+                    //  - If CaseTimer is for an SLA, then share the CaseTimer data with the SLA.
+                    //  - If CaseTimer is not for an SLA but if there is an SLA on the case, then share the Case data with the Sla's CaseTimer.
+                    var ssd = e.CaseTimerSnapshot.SnapshotData;
+                    if (ssd.CaseTimer.CaseTimerType === 'Sla')
+                    {
+                        // If SLA hasn't already been removed 
+                        if (ssd.Sla != null)
+                        {
+                            ssd.Sla.CaseTimer = ssd.CaseTimer;
+                        }
+                    }
+                    else if (ssd.Sla != null)
+                    {
+                        ssd.Sla.CaseTimer.Case = ssd.CaseTimer.Case;
+                    }
+                    // If an SLA is present, then share its data with the Case.
+                    if (ssd.Sla != null && ssd.Sla.CaseTimer.Case.Sla != ssd.Sla)
+                    {
+                        ssd.Sla.CaseTimer.Case.Sla = ssd.Sla;
+                    }
+                });
+            });
+        }
+
+
+        function transformCaseTimerDataToTimelineData(originalCaseTimerArray)
+        {
+            // create a copy of the data
+            let copyOfCaseTimerArray = JSON.parse(JSON.stringify(originalCaseTimerArray));
+
+            restoreReferencesInCaseTimerObjectGraph(copyOfCaseTimerArray);
+
+            normalizeProperties(copyOfCaseTimerArray);
+
+            return copyOfCaseTimerArray.map(ct => 
+            {
+                // for each case timer, this returns an array of data series, each of which can be plotted on the timeline
+
+                var points = (d3.nest().key(d => d.EventTime).entries(ct.Events))
+                    .map(d => {
+                        // Create point data structure
+                        return {
+                            type: TimelineChart.TYPE.POINT,
+                            customClass: 'point-white',
+                            label: function(){ 
+                                return d.values.length+' Event'+(d.values.length == 1 ? '' : 's')+':<br>' + 
+                                    d.values.map(e => ` - ${e.EventIdentifierString}<br>`).join('');
+                            },
+                            at: new Date(d.key),
+                            data: d.values,
+                            onClick: function(){ displayEventDetails(d.values); }
+                        };
+                    });
+
+                var eventsForTimerSeries = {
+                    label: "All Events for timer ["+ct.Name+"]",
+                    data: points
+                };
+
+                var allSeriesForTimer = [ eventsForTimerSeries ];
+
+                var now = new Date();
+                var intervalConfigs = [
+                    {
+                        startEventId: "TimerStartedAccruingTime",
+                        endEventId: "TimerStoppedAccruingTime",
+                        intervalType: "TimeAccrualInterval",
+                        intervalSeriesEventGroupingKeyFn: evt => "TimeAccrualInterval",
+                        intervalLabelFn: evt => "Clock Running",
+                        customClass: 'interval-white',
+                    },
+                    {
+                        startEventId: "CaseTimerStartedFollowingSla",
+                        endEventId: "CaseTimerStoppedFollowingSla",
+                        intervalType: "FollowingSlaInterval",
+                        intervalSeriesEventGroupingKeyFn: evt => "FollowingSlaInterval",
+                        intervalLabelFn: evt => "Following SLA",
+                        customClass: 'interval-white',
+                    },
+
+                    {
+                        startEventId: "Temporal:NonworkingScheduledTimePeriodBegan",
+                        endEventId: "Temporal:NonworkingScheduledTimePeriodEnded",
+                        intervalType: "NonworkingScheduledTimePeriodInterval",
+                        intervalSeriesEventGroupingKeyFn: evt => "NonworkingScheduledTimePeriodInterval-"+evt.EventData.TemporalEventArgs.NonWorkingPeriod.SourceId,
+                        intervalLabelFn: evt => "Non-working Scheduled Time Period: " + evt.EventData.TemporalEventArgs.NonWorkingPeriod.SourceName,
+                        customClass: 'interval-white',
+                    },
+                    {
+                        startEventId: "Temporal:SlaPauseBegan",
+                        endEventId: "Temporal:SlaPauseEnded",
+                        intervalType: "SlaPauseInterval",
+                        intervalSeriesEventGroupingKeyFn: evt => "SlaPauseInterval-"+evt.EventData.TemporalEventArgs.SourceId,
+                        intervalLabelFn: evt => "SLA Pause for " + evt.EventData.TemporalEventArgs.NonWorkingPeriod.SourceName,
+                        customClass: 'interval-white',
+                    },
+                    {
+                        startEventId: "Temporal:WorkPeriodEnded",
+                        endEventId: "Temporal:WorkPeriodBegan",
+                        intervalType: "OffWorkTimePeriodInterval",
+                        intervalSeriesEventGroupingKeyFn: evt => "OffWorkTimePeriodInterval-"+evt.EventData.TemporalEventArgs.SourceId,
+                        intervalLabelFn: evt => "Off-work time period for " + evt.EventData.TemporalEventArgs.NonWorkingPeriod.SourceName,
+                        customClass: 'interval-white',
+                    },
+                ];
+                //var intervalStartEventIds = intervalConfigs.map(ic => ic.startEventId);
+                //var intervalEndEventIds = intervalConfigs.map(ic => ic.endEventId);
+
+                let eventIntervalGroupingKeyFn = evt => {
+                    // find the first interval config that matches, cand call it's 
+                    var matchingIntervalConfig = intervalConfigs.find(ic => evt.EventIdentifierString.includes(ic.startEventId) || evt.EventIdentifierString.includes(ic.endEventId));
+                    if (!matchingIntervalConfig)
+                        return "REMOVE";
+                    evt.intervalConfig = matchingIntervalConfig;  // attach this to the event here, so we don't have to resolve it again later
+                    return matchingIntervalConfig.intervalSeriesEventGroupingKeyFn(evt);
+                };
+
+                // Create an array of interval groups
+                let groupedIntervals = d3.nest().key(eventIntervalGroupingKeyFn).entries(ct.Events).filter(o => o.key != "REMOVE").map(intervalGroup => {
+
+                    //var ic = intervalConfigs.find(ic => evt.EventIdentifierString.includes(ic.startEventId) || evt.EventIdentifierString.includes(ic.endEventId));
+                    var eventsOfInterest = intervalGroup.values;
+                    let intervals = [];
+                    for(var i = 0; i < eventsOfInterest.length; i += 2)
+                    {
+                        let curEvt = eventsOfInterest[i];
+                        let nextEvt = eventsOfInterest.length > i + 1 ? eventsOfInterest[i + 1] : null;
+                        let ic = curEvt.intervalConfig;
+
+                        // If following item exist in array, create an interval with this one and that one
+                        if (nextEvt != null)
+                        {
+                            intervals.push({
+                                type: TimelineChart.TYPE.INTERVAL,
+                                intervalType: ic.intervalType,
+                                customClass: ic.customClass,
+                                label: ic.intervalLabelFn(curEvt),
+                                from: new Date(curEvt.EventTime),
+                                to: new Date(nextEvt.EventTime),
+                                data: [curEvt, nextEvt],
+                                onClick: function(){ displayEventDetails([curEvt, nextEvt]); } 
+                            });
+                        }
+                        // ...otherwise, create the final interval with this one and the current time as a tentative stop time
+                        else
+                        {
+                            intervals.push({
+                                type: TimelineChart.TYPE.INTERVAL,
+                                intervalType: ic.intervalType,
+                                customClass: ic.customClass,
+                                label: ic.intervalLabelFn(curEvt),
+                                from: new Date(curEvt.EventTime),
+                                to: now,
+                                data: [curEvt],
+                                onClick: function(){ displayEventDetails([curEvt]); } 
+                            });
+                        }
+                    }
+
+                    return {
+                        label: intervalGroup.key,
+                        data: intervals
+                    };
+
+                });
+                console.log(groupedIntervals);
+
+                return allSeriesForTimer.concat(groupedIntervals);
+            })
+            // flatten the array of timeline data series arrays into a single array of TDS.
+            .reduce((accumulator, currentValue) => accumulator.concat(currentValue));
+
+
+            // (d3.nest()
+            //     .key(d => d.EventType)
+            //     .entries(caseTimerData.Events))
+            //     .map(d => ({label:d.key, data:d.values}));
+
+        }
+
+//var caseTimerDataArray = [ {"Events":[{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:32:26.5590879Z","OrdinalId":451,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T19:32:26.5590879Z","NonWorkingTimePeriodsFromCase":[]},"UniqueId":"850f7f6b-774e-4d13-935f-8bc1db762702","Id":"64e4423e-b9c1-4b29-a777-a86a00efa44c","LastModified":"2018-01-16T19:32:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"2420fdf7-0aeb-4ad5-8328-a86a00efa3d4","SlaId":"00000000-0000-0000-0000-000000000000"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:CaseTimerAdded","EventIdentifier":{"Key":"ActivityLog:CaseTimerAdded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":true,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":true,"EventType":"ActivityLog","EventTime":"2018-01-16T19:32:26.5590879Z","OrdinalId":551,"IsDerived":false,"Id":"420e1492-d9fe-4a69-bf5f-a86a00efa44c","LastModified":"2018-01-16T19:32:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:32:26.559088Z","OrdinalId":452,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:32:26.559088Z","NonWorkingTimePeriodsFromCase":[]},"UniqueId":"dfe95e6c-984f-4f3f-98ac-daa4c00d525d","Id":"cb4a2b8f-bc59-4ea0-a9c1-a86a00efa450","LastModified":"2018-01-16T19:32:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:TimerStartedAccruingTime","EventIdentifier":{"Key":"Derived:TimerStartedAccruingTime","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T19:32:26.5590879Z","OrdinalId":552,"IsDerived":true,"Id":"c723c6fe-d3f2-47d7-958a-a86a00efa450","LastModified":"2018-01-16T19:32:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:32:26.5590881Z","OrdinalId":453,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:32:26.5590881Z","NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":true,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"1acc5f98-60fb-4517-b4ae-e18b9b2565c3","Id":"dd1ba595-503d-4a51-addc-a86a00efa593","LastModified":"2018-01-16T19:42:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":0,"NonWorkingPeriod":{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":true,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},"Unexpected":true},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:NonWorkingScheduledTimePeriodBegan","EventIdentifier":{"Key":"Temporal:NonWorkingScheduledTimePeriodBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T19:32:26.559088Z","OrdinalId":553,"IsDerived":false,"Id":"c5e6c335-2e38-4829-99cc-a86a00efa593","LastModified":"2018-01-16T19:42:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:32:26.5590881Z","OrdinalId":453,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:32:26.5590881Z","NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":true,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"1acc5f98-60fb-4517-b4ae-e18b9b2565c3","Id":"dd1ba595-503d-4a51-addc-a86a00efa593","LastModified":"2018-01-16T19:42:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:TimerStoppedAccruingTime","EventIdentifier":{"Key":"Derived:TimerStoppedAccruingTime","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T19:32:26.559088Z","OrdinalId":554,"IsDerived":true,"Id":"f19666e6-0017-4d4d-9685-a86a00efa59f","LastModified":"2018-01-16T19:42:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:52:26.559088Z","OrdinalId":456,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:52:26.559088Z","NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"7f03e4fc-f1b1-4695-b10d-ea9d72f26493","Id":"ee884aff-be3b-4868-808b-a86a00efa64b","LastModified":"2018-01-16T19:52:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:CaseTimerStartedFollowingSla","EventIdentifier":{"Key":"Derived:CaseTimerStartedFollowingSla","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":556,"IsDerived":true,"Id":"173be147-fdd4-4631-87ff-a86a00efa64b","LastModified":"2018-01-16T19:52:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":455,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T19:52:26.5590879Z","NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"5be29dbe-36b1-46a1-a709-ac859f4eb999","Id":"b760e11c-9037-4e18-83a7-a86a00efa64b","LastModified":"2018-01-16T19:52:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"b12b274d-e84b-42fd-ac92-a86a00efa623","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":true,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaAdded","EventIdentifier":{"Key":"ActivityLog:SlaAdded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":true,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":true,"EventType":"ActivityLog","EventTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":555,"IsDerived":true,"Id":"b7f015ac-815b-44f5-8be5-a86a00efa64b","LastModified":"2018-01-16T19:52:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:02:26.559088Z","OrdinalId":459,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:02:26.559088Z","NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-16T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"}]},"UniqueId":"0e525048-5f5d-4844-b89b-98e4d8c5cbca","Id":"2e6fead0-c495-4666-bb87-a86a00efa770","LastModified":"2018-01-16T20:02:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":0,"NonWorkingPeriod":{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-16T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"},"Unexpected":false},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:SlaPauseBegan","EventIdentifier":{"Key":"Temporal:SlaPauseBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":560,"IsDerived":false,"Id":"e48c935e-7116-4deb-8053-a86a00efa770","LastModified":"2018-01-16T20:02:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":460,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T20:02:26.5590879Z","NonWorkingTimePeriodsFromCase":[{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-17T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"},{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"8a257e03-47ac-4eac-829e-e8f2e71b1cb4","Id":"a2ec324d-d11c-4d2b-bcc4-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"fc4b13a3-3e5b-4367-9960-a86a00efa6f6","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":true,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaPauseBegan","EventIdentifier":{"Key":"ActivityLog:SlaPauseBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"ActivityLog","EventTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":561,"IsDerived":true,"Id":"93b98f18-2f02-433f-b617-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":463,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.5590879Z","NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":true,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"6f312f7a-6a78-4bdd-9d59-a58dd40f5552","Id":"73161aa0-4aed-4180-a955-a86a00efa805","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"4313b8db-166b-4b07-812e-a86a00efa7ae","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":true,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaPauseEnded","EventIdentifier":{"Key":"ActivityLog:SlaPauseEnded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"ActivityLog","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":564,"IsDerived":true,"Id":"83b6b971-8552-42e0-8132-a86a00efa805","LastModified":"2018-01-16T20:12:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.559088Z","OrdinalId":465,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.559088Z","NonWorkingTimePeriodsFromCase":[]},"UniqueId":"62c13461-6fed-46c9-b721-c90249423be3","Id":"e67f5505-7318-4559-86e5-a86a00efa843","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":1,"NonWorkingPeriod":{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":true,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},"Unexpected":true},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:NonworkingScheduledTimePeriodEnded","EventIdentifier":{"Key":"Temporal:NonworkingScheduledTimePeriodEnded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":566,"IsDerived":false,"Id":"dfab3d5d-7af5-4eef-9c98-a86a00efa843","LastModified":"2018-01-16T20:22:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.559088Z","OrdinalId":465,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.559088Z","NonWorkingTimePeriodsFromCase":[]},"UniqueId":"62c13461-6fed-46c9-b721-c90249423be3","Id":"e67f5505-7318-4559-86e5-a86a00efa843","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:TimerStartedAccruingTime","EventIdentifier":{"Key":"Derived:TimerStartedAccruingTime","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":567,"IsDerived":true,"Id":"7d2f502a-0795-46fa-a9a0-a86a00efa844","LastModified":"2018-01-16T20:22:26Z"}],"Name":"Case Timer Template Name a32044e3-46dd-4770-9568-f176c89249ac","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"CaseTimer","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:32:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":null,"Id":"53c4b0b3-ce99-4c6c-94ed-a86a00efa3cd","LastModified":"2018-01-16T20:12:26Z"},
+//{"Events":[{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:52:26.559088Z","OrdinalId":457,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:52:26.559088Z","NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"27c088a0-505e-4302-97c8-e975e9bab05f","Id":"56e80f5f-d355-441f-bd66-a86a00efa64d","LastModified":"2018-01-16T19:52:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:TimerCreatedInARunningButNotAccruingTimeState","EventIdentifier":{"Key":"Derived:TimerCreatedInARunningButNotAccruingTimeState","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":559,"IsDerived":true,"Id":"a131efdf-e751-45ed-ba49-a86a00efa64d","LastModified":"2018-01-16T19:52:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:52:26.559088Z","OrdinalId":457,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:52:26.559088Z","NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"27c088a0-505e-4302-97c8-e975e9bab05f","Id":"56e80f5f-d355-441f-bd66-a86a00efa64d","LastModified":"2018-01-16T19:52:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":0,"NonWorkingPeriod":{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},"Unexpected":false},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:NonWorkingScheduledTimePeriodBegan","EventIdentifier":{"Key":"Temporal:NonWorkingScheduledTimePeriodBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":558,"IsDerived":false,"Id":"161339ed-a323-46d0-bc6f-a86a00efa64d","LastModified":"2018-01-16T19:52:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":455,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T19:52:26.5590879Z","NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"5be29dbe-36b1-46a1-a709-ac859f4eb999","Id":"b760e11c-9037-4e18-83a7-a86a00efa64b","LastModified":"2018-01-16T19:52:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"b12b274d-e84b-42fd-ac92-a86a00efa623","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaAdded","EventIdentifier":{"Key":"ActivityLog:SlaAdded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":true,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":true,"EventType":"ActivityLog","EventTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":557,"IsDerived":false,"Id":"e052ba8d-afbe-4887-bc84-a86a00efa64d","LastModified":"2018-01-16T19:52:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:02:26.559088Z","OrdinalId":461,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:02:26.559088Z","NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-16T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"}]},"UniqueId":"4c322481-fec5-440e-921e-4148ea5a5c3e","Id":"8302cef3-88d5-4282-a626-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":0,"NonWorkingPeriod":{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-16T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"},"Unexpected":false},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:SlaPauseBegan","EventIdentifier":{"Key":"Temporal:SlaPauseBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":563,"IsDerived":false,"Id":"12d344ba-418f-4a31-acae-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":460,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T20:02:26.5590879Z","NonWorkingTimePeriodsFromCase":[{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-17T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"},{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"8a257e03-47ac-4eac-829e-e8f2e71b1cb4","Id":"a2ec324d-d11c-4d2b-bcc4-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"fc4b13a3-3e5b-4367-9960-a86a00efa6f6","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaPauseBegan","EventIdentifier":{"Key":"ActivityLog:SlaPauseBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"ActivityLog","EventTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":562,"IsDerived":false,"Id":"b04019ce-0d55-4a4c-b12a-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":463,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.5590879Z","NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":true,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"6f312f7a-6a78-4bdd-9d59-a58dd40f5552","Id":"73161aa0-4aed-4180-a955-a86a00efa805","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"4313b8db-166b-4b07-812e-a86a00efa7ae","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaPauseEnded","EventIdentifier":{"Key":"ActivityLog:SlaPauseEnded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"ActivityLog","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":565,"IsDerived":false,"Id":"f469d768-b6f2-48bf-b1aa-a86a00efa805","LastModified":"2018-01-16T20:12:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.559088Z","OrdinalId":466,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.559088Z","NonWorkingTimePeriodsFromCase":[]},"UniqueId":"1fe05c91-0100-4737-82a9-2936c5770ab8","Id":"af0a21f1-e8c1-4198-aeb0-a86a00efa844","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":1,"NonWorkingPeriod":{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":true,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},"Unexpected":true},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:NonworkingScheduledTimePeriodEnded","EventIdentifier":{"Key":"Temporal:NonworkingScheduledTimePeriodEnded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":568,"IsDerived":false,"Id":"cf871b3c-d9f8-47b7-b09d-a86a00efa844","LastModified":"2018-01-16T20:22:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.559088Z","OrdinalId":466,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.559088Z","NonWorkingTimePeriodsFromCase":[]},"UniqueId":"1fe05c91-0100-4737-82a9-2936c5770ab8","Id":"af0a21f1-e8c1-4198-aeb0-a86a00efa844","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:TimerStartedAccruingTime","EventIdentifier":{"Key":"Derived:TimerStartedAccruingTime","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":569,"IsDerived":true,"Id":"ecc64c11-3ccf-4566-bb2e-a86a00efa844","LastModified":"2018-01-16T20:22:26Z"}],"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":null,"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"} ];
+
+var caseTimerDataArray = [{"Events":[{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:32:26.5590879Z","OrdinalId":451,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T19:32:26.5590879Z","Sla":null,"CaseTimer":{"Name":"Case Timer Template Name a32044e3-46dd-4770-9568-f176c89249ac","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"CaseTimer","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:32:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"None","CurrentEffectiveClockState":"RunningAndAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26.5590879Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"53c4b0b3-ce99-4c6c-94ed-a86a00efa3cd","LastModified":null},"NonWorkingTimePeriodsFromCase":[]},"UniqueId":"fd4dd849-921e-47dd-a9a9-88640e0d39a8","Id":"64e4423e-b9c1-4b29-a777-a86a00efa44c","LastModified":"2018-01-16T19:32:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"2420fdf7-0aeb-4ad5-8328-a86a00efa3d4","SlaId":"00000000-0000-0000-0000-000000000000"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:CaseTimerAdded","EventIdentifier":{"Key":"ActivityLog:CaseTimerAdded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":true,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":true,"EventType":"ActivityLog","EventTime":"2018-01-16T19:32:26.5590879Z","OrdinalId":551,"IsDerived":false,"Id":"420e1492-d9fe-4a69-bf5f-a86a00efa44c","LastModified":"2018-01-16T19:32:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:32:26.559088Z","OrdinalId":452,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:32:26.559088Z","Sla":null,"CaseTimer":{"Name":"Case Timer Template Name a32044e3-46dd-4770-9568-f176c89249ac","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"CaseTimer","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:32:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"None","CurrentEffectiveClockState":"RunningAndAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26.5590879Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"53c4b0b3-ce99-4c6c-94ed-a86a00efa3cd","LastModified":null},"NonWorkingTimePeriodsFromCase":[]},"UniqueId":"1a9ef51d-6b8a-4b50-8fe8-08e75ef1e585","Id":"cb4a2b8f-bc59-4ea0-a9c1-a86a00efa450","LastModified":"2018-01-16T19:32:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:TimerStartedAccruingTime","EventIdentifier":{"Key":"Derived:TimerStartedAccruingTime","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T19:32:26.5590879Z","OrdinalId":552,"IsDerived":true,"Id":"c723c6fe-d3f2-47d7-958a-a86a00efa450","LastModified":"2018-01-16T19:32:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:32:26.5590881Z","OrdinalId":453,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:32:26.5590881Z","Sla":null,"CaseTimer":{"Name":"Case Timer Template Name a32044e3-46dd-4770-9568-f176c89249ac","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"CaseTimer","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:32:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26.5590879Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"53c4b0b3-ce99-4c6c-94ed-a86a00efa3cd","LastModified":null},"NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":true,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"eeedea93-d361-4bc2-b44b-3185c7189951","Id":"dd1ba595-503d-4a51-addc-a86a00efa593","LastModified":"2018-01-16T19:42:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":0,"NonWorkingPeriod":{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":true,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},"Unexpected":true},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:NonWorkingScheduledTimePeriodBegan","EventIdentifier":{"Key":"Temporal:NonWorkingScheduledTimePeriodBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T19:32:26.559088Z","OrdinalId":553,"IsDerived":false,"Id":"c5e6c335-2e38-4829-99cc-a86a00efa593","LastModified":"2018-01-16T19:42:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:32:26.5590881Z","OrdinalId":453,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:32:26.5590881Z","Sla":null,"CaseTimer":{"Name":"Case Timer Template Name a32044e3-46dd-4770-9568-f176c89249ac","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"CaseTimer","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:32:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26.5590879Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T19:32:26.5590879Z"},"Id":"53c4b0b3-ce99-4c6c-94ed-a86a00efa3cd","LastModified":null},"NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":true,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"eeedea93-d361-4bc2-b44b-3185c7189951","Id":"dd1ba595-503d-4a51-addc-a86a00efa593","LastModified":"2018-01-16T19:42:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:TimerStoppedAccruingTime","EventIdentifier":{"Key":"Derived:TimerStoppedAccruingTime","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T19:32:26.559088Z","OrdinalId":554,"IsDerived":true,"Id":"f19666e6-0017-4d4d-9685-a86a00efa59f","LastModified":"2018-01-16T19:42:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:52:26.559088Z","OrdinalId":456,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:52:26.559088Z","Sla":{"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":null,"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":null},"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":null}],"SlaColor":null,"Status":"Running","IsPaused":false,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":null},"CaseTimer":{"Name":"Case Timer Template Name a32044e3-46dd-4770-9568-f176c89249ac","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"CaseTimer","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:32:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T19:32:26Z"},"Id":"53c4b0b3-ce99-4c6c-94ed-a86a00efa3cd","LastModified":"2018-01-16T19:32:26Z"},"NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"3b1647df-6a53-4a78-be54-367eabd92bfb","Id":"ee884aff-be3b-4868-808b-a86a00efa64b","LastModified":"2018-01-16T19:52:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:CaseTimerStartedFollowingSla","EventIdentifier":{"Key":"Derived:CaseTimerStartedFollowingSla","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":556,"IsDerived":true,"Id":"173be147-fdd4-4631-87ff-a86a00efa64b","LastModified":"2018-01-16T19:52:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":455,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T19:52:26.5590879Z","Sla":{"CaseTimer":null,"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":null}],"SlaColor":null,"Status":"Running","IsPaused":false,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":null},"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T19:52:26.5590879Z"},"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":null},"NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"236187ce-c901-4fa1-90ab-1e902a667020","Id":"b760e11c-9037-4e18-83a7-a86a00efa64b","LastModified":"2018-01-16T19:52:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"b12b274d-e84b-42fd-ac92-a86a00efa623","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":true,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaAdded","EventIdentifier":{"Key":"ActivityLog:SlaAdded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":true,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":true,"EventType":"ActivityLog","EventTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":555,"IsDerived":true,"Id":"b7f015ac-815b-44f5-8be5-a86a00efa64b","LastModified":"2018-01-16T19:52:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:02:26.559088Z","OrdinalId":459,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:02:26.559088Z","Sla":{"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":null,"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":null},"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":null}],"SlaColor":null,"Status":"Paused","IsPaused":true,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":null},"CaseTimer":{"Name":"Case Timer Template Name a32044e3-46dd-4770-9568-f176c89249ac","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"CaseTimer","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:32:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T19:32:26Z"},"Id":"53c4b0b3-ce99-4c6c-94ed-a86a00efa3cd","LastModified":"2018-01-16T19:32:26Z"},"NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-16T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"}]},"UniqueId":"78b7c3c4-4eda-46e1-bedf-aae180a3e9c4","Id":"2e6fead0-c495-4666-bb87-a86a00efa770","LastModified":"2018-01-16T20:02:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":0,"NonWorkingPeriod":{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-16T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"},"Unexpected":false},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:SlaPauseBegan","EventIdentifier":{"Key":"Temporal:SlaPauseBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":560,"IsDerived":false,"Id":"e48c935e-7116-4deb-8053-a86a00efa770","LastModified":"2018-01-16T20:02:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":460,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T20:02:26.5590879Z","Sla":{"CaseTimer":null,"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":"2018-01-16T19:52:26Z"}],"SlaColor":null,"Status":"Paused","IsPaused":true,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":"2018-01-16T20:02:26Z"},"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent, SlaPause","CurrentEffectiveClockState":"ExplicitlyStopped","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T20:02:26Z"},"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":"2018-01-16T20:02:26Z"},"NonWorkingTimePeriodsFromCase":[{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-17T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"},{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"ee4aef83-1c86-4f25-9182-d6930ac2f924","Id":"a2ec324d-d11c-4d2b-bcc4-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"fc4b13a3-3e5b-4367-9960-a86a00efa6f6","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":true,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaPauseBegan","EventIdentifier":{"Key":"ActivityLog:SlaPauseBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"ActivityLog","EventTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":561,"IsDerived":true,"Id":"93b98f18-2f02-433f-b617-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":463,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.5590879Z","Sla":{"CaseTimer":null,"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":"2018-01-16T19:52:26Z"}],"SlaColor":null,"Status":"Running","IsPaused":false,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T20:12:26Z"},"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":true,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"222336e1-ca46-4c82-89d3-bdb2e894d1c7","Id":"73161aa0-4aed-4180-a955-a86a00efa805","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"4313b8db-166b-4b07-812e-a86a00efa7ae","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":true,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaPauseEnded","EventIdentifier":{"Key":"ActivityLog:SlaPauseEnded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"ActivityLog","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":564,"IsDerived":true,"Id":"83b6b971-8552-42e0-8132-a86a00efa805","LastModified":"2018-01-16T20:12:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.559088Z","OrdinalId":465,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.559088Z","Sla":{"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"None","CurrentEffectiveClockState":"RunningAndAccruingTime","Case":null,"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":"2018-01-16T19:52:26Z"}],"SlaColor":null,"Status":"Running","IsPaused":false,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"CaseTimer":{"Name":"Case Timer Template Name a32044e3-46dd-4770-9568-f176c89249ac","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"CaseTimer","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:32:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"None","CurrentEffectiveClockState":"RunningAndAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T20:12:26Z"},"Id":"53c4b0b3-ce99-4c6c-94ed-a86a00efa3cd","LastModified":"2018-01-16T20:12:26Z"},"NonWorkingTimePeriodsFromCase":[]},"UniqueId":"ccecf74f-48b4-46e5-9689-6b21046f0ca6","Id":"e67f5505-7318-4559-86e5-a86a00efa843","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":1,"NonWorkingPeriod":{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":true,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},"Unexpected":true},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:NonworkingScheduledTimePeriodEnded","EventIdentifier":{"Key":"Temporal:NonworkingScheduledTimePeriodEnded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":566,"IsDerived":false,"Id":"dfab3d5d-7af5-4eef-9c98-a86a00efa843","LastModified":"2018-01-16T20:22:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.559088Z","OrdinalId":465,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.559088Z","Sla":{"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"None","CurrentEffectiveClockState":"RunningAndAccruingTime","Case":null,"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":"2018-01-16T19:52:26Z"}],"SlaColor":null,"Status":"Running","IsPaused":false,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"CaseTimer":{"Name":"Case Timer Template Name a32044e3-46dd-4770-9568-f176c89249ac","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"CaseTimer","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:32:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"None","CurrentEffectiveClockState":"RunningAndAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T20:12:26Z"},"Id":"53c4b0b3-ce99-4c6c-94ed-a86a00efa3cd","LastModified":"2018-01-16T20:12:26Z"},"NonWorkingTimePeriodsFromCase":[]},"UniqueId":"ccecf74f-48b4-46e5-9689-6b21046f0ca6","Id":"e67f5505-7318-4559-86e5-a86a00efa843","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:TimerStartedAccruingTime","EventIdentifier":{"Key":"Derived:TimerStartedAccruingTime","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":567,"IsDerived":true,"Id":"7d2f502a-0795-46fa-a9a0-a86a00efa844","LastModified":"2018-01-16T20:22:26Z"}],"Name":"Case Timer Template Name a32044e3-46dd-4770-9568-f176c89249ac","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"CaseTimer","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:32:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":null,"Id":"53c4b0b3-ce99-4c6c-94ed-a86a00efa3cd","LastModified":"2018-01-16T20:12:26Z"},{"Events":[{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:52:26.559088Z","OrdinalId":457,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:52:26.559088Z","Sla":{"CaseTimer":null,"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":null}],"SlaColor":null,"Status":"Running","IsPaused":false,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":null},"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T19:32:26Z"},"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":null},"NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"fbbe9343-f859-4e62-88cc-4ac25bf0986f","Id":"56e80f5f-d355-441f-bd66-a86a00efa64d","LastModified":"2018-01-16T19:52:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:TimerCreatedInARunningButNotAccruingTimeState","EventIdentifier":{"Key":"Derived:TimerCreatedInARunningButNotAccruingTimeState","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":559,"IsDerived":true,"Id":"a131efdf-e751-45ed-ba49-a86a00efa64d","LastModified":"2018-01-16T19:52:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:52:26.559088Z","OrdinalId":457,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T19:52:26.559088Z","Sla":{"CaseTimer":null,"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":null}],"SlaColor":null,"Status":"Running","IsPaused":false,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":null},"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T19:32:26Z"},"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":null},"NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"fbbe9343-f859-4e62-88cc-4ac25bf0986f","Id":"56e80f5f-d355-441f-bd66-a86a00efa64d","LastModified":"2018-01-16T19:52:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":0,"NonWorkingPeriod":{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},"Unexpected":false},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:NonWorkingScheduledTimePeriodBegan","EventIdentifier":{"Key":"Temporal:NonWorkingScheduledTimePeriodBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":558,"IsDerived":false,"Id":"161339ed-a323-46d0-bc6f-a86a00efa64d","LastModified":"2018-01-16T19:52:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":455,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T19:52:26.5590879Z","Sla":{"CaseTimer":null,"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":null}],"SlaColor":null,"Status":"Running","IsPaused":false,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":null},"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T19:52:26.5590879Z"},"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":null},"NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"236187ce-c901-4fa1-90ab-1e902a667020","Id":"b760e11c-9037-4e18-83a7-a86a00efa64b","LastModified":"2018-01-16T19:52:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"b12b274d-e84b-42fd-ac92-a86a00efa623","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaAdded","EventIdentifier":{"Key":"ActivityLog:SlaAdded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":true,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":true,"EventType":"ActivityLog","EventTime":"2018-01-16T19:52:26.5590879Z","OrdinalId":557,"IsDerived":false,"Id":"e052ba8d-afbe-4887-bc84-a86a00efa64d","LastModified":"2018-01-16T19:52:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:02:26.559088Z","OrdinalId":461,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:02:26.559088Z","Sla":{"CaseTimer":null,"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":null}],"SlaColor":null,"Status":"Paused","IsPaused":true,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":null},"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T19:32:26Z"},"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":null},"NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-16T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"}]},"UniqueId":"6276d839-f34e-443b-ab21-2ac7ebafad3b","Id":"8302cef3-88d5-4282-a626-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":0,"NonWorkingPeriod":{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-16T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"},"Unexpected":false},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:SlaPauseBegan","EventIdentifier":{"Key":"Temporal:SlaPauseBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":563,"IsDerived":false,"Id":"12d344ba-418f-4a31-acae-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":460,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T20:02:26.5590879Z","Sla":{"CaseTimer":null,"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":"2018-01-16T19:52:26Z"}],"SlaColor":null,"Status":"Paused","IsPaused":true,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":"2018-01-16T20:02:26Z"},"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent, SlaPause","CurrentEffectiveClockState":"ExplicitlyStopped","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T20:02:26Z"},"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":"2018-01-16T20:02:26Z"},"NonWorkingTimePeriodsFromCase":[{"Name":null,"Type":"SlaPause","Began":"2018-01-16T20:02:26.5590879Z","Ends":"2018-01-17T20:02:26.5590879Z","EndingIsFinalized":false,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"Sla","SourceId":"3032588a-f5ea-4138-bb94-a86a00efa617","SourceName":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361"},{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":false,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"ee4aef83-1c86-4f25-9182-d6930ac2f924","Id":"a2ec324d-d11c-4d2b-bcc4-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"fc4b13a3-3e5b-4367-9960-a86a00efa6f6","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaPauseBegan","EventIdentifier":{"Key":"ActivityLog:SlaPauseBegan","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"ActivityLog","EventTime":"2018-01-16T20:02:26.5590879Z","OrdinalId":562,"IsDerived":false,"Id":"b04019ce-0d55-4a4c-b12a-a86a00efa771","LastModified":"2018-01-16T20:02:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":463,"IsDerived":false,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.5590879Z","Sla":{"CaseTimer":null,"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":"2018-01-16T19:52:26Z"}],"SlaColor":null,"Status":"Running","IsPaused":false,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T20:12:26Z"},"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"NonWorkingTimePeriodsFromCase":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":true,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"}]},"UniqueId":"222336e1-ca46-4c82-89d3-bdb2e894d1c7","Id":"73161aa0-4aed-4180-a955-a86a00efa805","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":{"ActivityLogId":"4313b8db-166b-4b07-812e-a86a00efa7ae","SlaId":"3032588a-f5ea-4138-bb94-a86a00efa617"},"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"ActivityLog:SlaPauseEnded","EventIdentifier":{"Key":"ActivityLog:SlaPauseEnded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":true,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"ActivityLog","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":565,"IsDerived":false,"Id":"f469d768-b6f2-48bf-b1aa-a86a00efa805","LastModified":"2018-01-16T20:12:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.559088Z","OrdinalId":466,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.559088Z","Sla":{"CaseTimer":null,"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":"2018-01-16T19:52:26Z"}],"SlaColor":null,"Status":"Running","IsPaused":false,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"None","CurrentEffectiveClockState":"RunningAndAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T20:12:26Z"},"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"NonWorkingTimePeriodsFromCase":[]},"UniqueId":"361cb8dd-8345-4cf0-b553-30cf6967c84e","Id":"af0a21f1-e8c1-4198-aeb0-a86a00efa844","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":{"TemporalEventType":1,"NonWorkingPeriod":{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","Type":"NonWorkingScheduledEvent","Began":"2018-01-16T18:42:26Z","Ends":"2018-01-16T20:42:26Z","EndingIsFinalized":true,"UnexpectedBeginning":false,"UnexpectedEnding":true,"EventSource":"OwnersSite","SourceId":"d57d4cbd-d988-461e-bd4f-a86a00efa547","SourceName":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)"},"Unexpected":true},"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Temporal:NonworkingScheduledTimePeriodEnded","EventIdentifier":{"Key":"Temporal:NonworkingScheduledTimePeriodEnded","IsDerivedEvent":false,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":true,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Temporal","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":568,"IsDerived":false,"Id":"cf871b3c-d9f8-47b7-b09d-a86a00efa844","LastModified":"2018-01-16T20:22:26Z"},{"CaseTimer":null,"CaseTimerSnapshot":{"CaseTimer":null,"SnapshotTime":"2018-01-16T20:12:26.559088Z","OrdinalId":466,"IsDerived":true,"SnapshotData":{"SnapshotTime":"2018-01-16T20:12:26.559088Z","Sla":{"CaseTimer":null,"SlaReplacementElapsedTimeAllocationPolicy":"UsePercentageElapsedTime","TargetResolutionDuration":"08:00:00","ControlPoints":[{"IntervalType":"Percent","IntervalValue":75,"Name":"Valid CP definition","SlaColor":"Red","ExecutedTime":null,"Id":"6a901cfb-44da-4884-a8fe-a86a00efa620","LastModified":"2018-01-16T19:52:26Z"}],"SlaColor":null,"Status":"Running","IsPaused":false,"IsActive":true,"TimeRemaining":"08:00:00","EstimatedTargetResolutionDate":"2018-01-17T04:42:26Z","TimeUntilNextControlPoint":"06:00:00","EstimatedNextControlPointDate":"2018-01-17T02:42:26Z","RespectSlaPauses":true,"Id":"3032588a-f5ea-4138-bb94-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"CaseTimer":{"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"None","CurrentEffectiveClockState":"RunningAndAccruingTime","Case":{"Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118","Owner":{"FirstName":"2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"2f9d67f4-b19e-40b1-947d-849cf4655118","Site":{"Name":"Site 2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-41c7-b15f-c36e9f2d862e","Identifier":"2f9d67f4-b19e-40b1-947d-849cf4655118be223875-1481-","Calendar":null,"NonWorkingSchedules":[{"Name":"Non-Working Schedule (c67a542d-c115-4811-95e7-1c374013498c)","Description":null,"Status":null,"NonWorkingTimePeriods":[{"Name":"Event 1e09a617-acc2-43e3-b260-4a9781ae442e","StartDateTime":"2018-01-16T18:42:26Z","EndDateTime":"2018-01-16T20:42:26Z","Id":"d12333a7-de78-4fe2-bd0a-a86a00efa548","LastModified":"2018-01-16T19:42:26Z"}],"Id":"d57d4cbd-d988-461e-bd4f-a86a00efa547","LastModified":"2018-01-16T19:42:26Z"}],"Id":"baf432c8-652d-4737-bbfd-a86a00efa0b4","LastModified":"2018-01-16T19:32:26Z"},"Id":"93ecceaf-e10b-47ca-b622-a86a00efa0b1","LastModified":"2018-01-16T19:32:26Z"},"Employee":{"FirstName":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","LastName":"Smith","PrimarySite":{"Name":"Site csr2f9d67f4-b19e-40b1-947d-849cf4655118","Identifier":"csr2f9d67f4-b19e-40b1-947d-849cf4655118","Calendar":null,"NonWorkingSchedules":[],"Id":"713cf5de-f6ee-43ee-ba02-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"01d0803d-1152-4ca0-94a8-a86a00efa0ca","LastModified":"2018-01-16T19:32:26Z"},"Id":"06c62566-926b-43ec-a594-a86a00efa0ac","LastModified":"2018-01-16T20:12:26Z"},"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"},"NonWorkingTimePeriodsFromCase":[]},"UniqueId":"361cb8dd-8345-4cf0-b553-30cf6967c84e","Id":"af0a21f1-e8c1-4198-aeb0-a86a00efa844","LastModified":"2018-01-16T20:22:26Z"},"EventData":{"TemporalEventArgs":null,"ActivityLogEventArgs":null,"UserEventArgs":null,"DataChangedEventArgs":null},"IsInherited":false,"AppIdentifier":"agent","EventIdentifierString":"Derived:TimerStartedAccruingTime","EventIdentifier":{"Key":"Derived:TimerStartedAccruingTime","IsDerivedEvent":true,"IsUserEvent":false,"IsActivityLogEvent":false,"IsCaseTimerCreationEvent":false,"IsTemporalEvent":false,"IsDataChangeEvent":false},"IsCaseTimerCreationEvent":false,"EventType":"Derived","EventTime":"2018-01-16T20:12:26.5590879Z","OrdinalId":569,"IsDerived":true,"Id":"ecc64c11-3ccf-4566-bb2e-a86a00efa844","LastModified":"2018-01-16T20:22:26Z"}],"Name":"Case Timer Template Name e0231979-2b8d-45d9-9d45-5fdb9da79361","RespectNonWorkingSchedule":true,"RespectWorkCalendar":true,"RespectSlaClock":true,"DisplayOnCase":true,"CaseTimerType":"Sla","NonWorkingEventSource":"OwnersSite","Started":"2018-01-16T19:52:26.5590879Z","Stopped":null,"IsActive":true,"RunTime":"00:00:00","Offset":"00:00:00","ElapsedTime":"00:00:00","LastCalculated":null,"CurrentNonWorkingTimePeriodTypes":"NonWorkingScheduledEvent","CurrentEffectiveClockState":"RunningButNotAccruingTime","Case":null,"Id":"f1d71172-4d2a-44bc-ac53-a86a00efa617","LastModified":"2018-01-16T20:12:26Z"}]
+;
+        var caseTimerTimelineData = transformCaseTimerDataToTimelineData(caseTimerDataArray);
+
+        const timelineData = [
+            {
+                label: 'SLA Case Timer Events',
+                data: [    // Created wed, mar 8
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [
+                            'Event: SLA added to case.',
+                            '  Respect Working Hours: true',
+                            '  Respect Calendars: true',
+                            '  Target Resolution Time: 12 hours',
+                            '  Site: Phoenix, AZ',
+                            '  Owner: Colonel Mustard'
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 8, 11, 15)
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Initial response reminder message sent to owner.",
+                            "  Owner: Colonel Mustard",
+                            "  SLA Elapsed Time: 2 hours"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 8, 13, 15)
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Case owner sent email to employee.", 
+                            "  Owner: Colonel Mustard",
+                            "Event: SLA clock paused.",
+                            "  SLA Elapsed Time: 2 hours 15 minutes"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 8, 13, 30),
+                    },
+                    {
+                        label: 'SLA Clock Paused',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-white',
+                        from: new Date(2017, 2, 8, 13, 30),
+                        to: new Date(2017, 2, 8, 15, 0)
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Customer responded to case via email.", 
+                            "Event: SLA clock started.",
+                            "  SLA Elapsed Time: 2 hours 15 minutes"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 8, 15, 0)
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Case owner sent email to employee.", 
+                            "  Owner: Colonel Mustard",
+                            "Event: SLA clock paused.",
+                            "  SLA Elapsed Time: 3 hours 45 minutes"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 8, 16, 30)
+                    },
+                    {
+                        label: 'SLA Clock Paused',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-white',
+                        from: new Date(2017, 2, 8, 16, 30),
+                        to: new Date(2017, 2, 9, 8, 30)
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Customer responded to case via email.", 
+                            "Event: SLA clock started.",
+                            "  SLA Elapsed Time: 3 hours 45 minutes"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 9, 8, 30)
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Case owner sent email to employee.", 
+                            "  Owner: Colonel Mustard",
+                            "Event: SLA clock paused.",
+                            "  SLA Elapsed Time: 4 hours 30 minutes"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 9, 9, 45),
+                    },
+                    {
+                        label: 'SLA Clock Paused',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-white',
+                        from: new Date(2017, 2, 9, 9, 45),
+                        to: new Date(2017, 2, 9, 12, 0)
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Customer responded to case via email.", 
+                            "Event: SLA clock started.",
+                            "  SLA Elapsed Time: 4 hours 30 minutes"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 9, 12, 0)
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [
+                            "Event: Case assigned to new owner.",
+                            "  Former owner: Colonel Mustard",
+                            "  New owner: Miss Scarlet",
+                            " Site of case owner has also changed.",
+                            "  Former site: Phoenix, AZ",
+                            "  New site: Houston, TX",
+                            "SLA Elapsed Time: 4 hours 45 minutes"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 9, 12, 15)
+                    },
+
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Case owner sent email to employee.", 
+                            "  Owner: Miss Scarlet",
+                            "Event: SLA clock paused.",
+                            "  SLA Elapsed Time: 5 hours 15 minutes"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 9, 12, 45)
+                    },
+                    {
+                        label: 'SLA Clock Paused',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-white',
+                        from: new Date(2017, 2, 9, 12, 45),
+                        to: new Date(2017, 2, 10, 7, 0)
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Customer responded to case via email.", 
+                            "Event: SLA clock started.",
+                            "  SLA Elapsed Time: 5 hours 15 minutes"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 10, 7, 0)
+                    },
+
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Control point breached.", 
+                            "  Condition: 50% of target resolution time.",
+                            "  Action: Set SLA Color to Yellow.",
+                            "Event: SLA clock started.",
+                            "  SLA Elapsed Time: 6 hours"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 10, 8, 45)
+                    },
+
+
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Case owner sent email to employee.", 
+                            "  Owner: Miss Scarlet",
+                            "Event: SLA clock paused.",
+                            "  SLA Elapsed Time: 7 hours"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 10, 9, 45)
+                    },
+                    {
+                        label: 'SLA Clock Paused',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-white',
+                        from: new Date(2017, 2, 10, 9, 45),
+                        to: new Date(2017, 2, 10, 13, 30)
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Customer responded to case via email.", 
+                            "Event: SLA clock started.",
+                            "  SLA Elapsed Time: 7 hours"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 10, 13, 30)
+                    },
+
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Control point breached.", 
+                            "  Condition: 75% of target resolution time.",
+                            "  Action: Set SLA Color to Orange.",
+                            "Event: Control point breached.", 
+                            "  Condition: 75% of target resolution time.",
+                            "  Action: Notify Manager.",
+                            "  Manager: Professor Plum",
+                            "SLA Elapsed Time: 9 hours"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 13, 10, 0)
+                    },
+
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        customClass: 'point-white',
+                        label: [ 
+                            "Event: Case owner sent email to employee.", 
+                            "  Owner: Miss Scarlet",
+                            "Event: Case closed by owner.", 
+                            "  Owner: Miss Scarlet",
+                            "Event: SLA clock paused.",
+                            "SLA Elapsed Time: 9 hours 30 minutes"
+                        ].join("<br>"),
+                        at: new Date(2017, 2, 13, 10, 30),
+                    }
+                ]
+            }
+            ,
+            {
+                label: 'SLA Time Accrued',
+                data: [
+                    {
+                        label: null,
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-green',
+                        from: new Date(2017, 2, 8, 11, 15),
+                        to: new Date(2017, 2, 8, 13, 30)
+                    },
+                    {
+                        label: null,
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-green',
+                        from: new Date(2017, 2, 8, 15, 0),
+                        to: new Date(2017, 2, 8, 16, 30)
+                    },
+                    {
+                        label: null,
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-green',
+                        from: new Date(2017, 2, 9, 9, 0),
+                        to: new Date(2017, 2, 9, 9, 45)
+                    },
+                    {
+                        label: null,
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-green',
+                        from: new Date(2017, 2, 9, 12, 0),
+                        to: new Date(2017, 2, 9, 12, 15)
+                    },
+                    {
+                        label: null,
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-green',
+                        from: new Date(2017, 2, 9, 12, 15),
+                        to: new Date(2017, 2, 9, 12, 45)
+                    },
+                    {
+                        label: null,
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-green',
+                        from: new Date(2017, 2, 10, 8, 0),
+                        to: new Date(2017, 2, 10, 8, 45)
+                    },
+                    {
+                        label: null,
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-yellow',
+                        from: new Date(2017, 2, 10, 8, 45),
+                        to: new Date(2017, 2, 10, 9, 45)
+                    },
+                    {
+                        label: null,
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-yellow',
+                        from: new Date(2017, 2, 13, 8, 0),
+                        to: new Date(2017, 2, 13, 10, 0)
+                    },
+                    {
+                        label: null,
+                        type: TimelineChart.TYPE.INTERVAL,
+                        customClass: 'interval-orange',
+                        from: new Date(2017, 2, 13, 10, 0),
+                        to: new Date(2017, 2, 13, 10, 30)
+                    }
+                ]
+            }
+            ,
+            {
+                label: 'Work schedule "M-F 8am-5pm" for site "Phoenix, AZ"',
+                data: [
+                    {
+                        label: 'Off-work hours',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        from: new Date(2017, 2, 8, 18),
+                        to: new Date(2017, 2, 9, 9)
+                    }, 
+                ]
+            }
+            ,
+            {
+                label: 'Work schedule "M-F 8am-5pm" for site "Houston, TX"',
+                data: [
+                    {
+                        label: 'Off-work hours',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        from: new Date(2017, 2, 9, 17),
+                        to: new Date(2017, 2, 10, 8)
+                    },
+                    {
+                        label: 'Off-work hours',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        from: new Date(2017, 2, 10, 17),
+                        to: new Date(2017, 2, 13, 8)
+                    }
+                ]
+            }
+            ,
+            {
+                label: 'Calendar "Half Days" for site "Houston, TX"',
+                data: [
+                    {
+                        label: [ 
+                            "Event: Half day",
+                            "  Calendar: Time Off",
+                            "  Site: Houston, TX"
+                        ].join("<br>"),
+                        label: 'Half Day Fridays!',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        from: new Date(2017, 2, 10, 12),
+                        to: new Date(2017, 2, 10, 17)
+                    }
+                ]
+            }
+        ];
+
+
+        initializeTimeline();
+    </script>
+</body>
+
+</html>

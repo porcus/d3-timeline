@@ -11,13 +11,17 @@
     }
     rect.chart-bounds, rect.interval {
         &:hover {
+            stroke-width: 3;
             cursor: grab;
         }
         &:active {
             cursor: grabbing;
         }
     }
-    .dot:hover {
+    .dot {
+        &:hover {
+            stroke-width: 3;
+        }
         cursor: pointer;
     }
     .interval-text {

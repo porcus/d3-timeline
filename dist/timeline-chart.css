@@ -5,13 +5,11 @@
 .timeline-chart line {
   stroke: black; }
 
-.timeline-chart .vertical-marker {
-  stroke-width: 1; }
-
 .timeline-chart rect, .timeline-chart rect.chart-bounds {
   fill: transparent; }
 
 .timeline-chart rect.chart-bounds:hover, .timeline-chart rect.interval:hover {
+  stroke-width: 3;
   cursor: -webkit-grab;
   cursor: grab; }
 
@@ -19,8 +17,10 @@
   cursor: -webkit-grabbing;
   cursor: grabbing; }
 
-.timeline-chart .dot:hover {
+.timeline-chart .dot {
   cursor: pointer; }
+  .timeline-chart .dot:hover {
+    stroke-width: 3; }
 
 .timeline-chart .interval-text {
   pointer-events: none; }
