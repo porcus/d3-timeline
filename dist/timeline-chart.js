@@ -116,7 +116,8 @@
                 var groupLabels = svg.selectAll('.group-label').data(data).enter().append('text').attr('class', 'group-label').attr('x', '0.5em') //0)
                 .attr('y', function (d, i) {
                     return groupHeight * i + groupHeight / 2; //+ 5.5;
-                }).attr('dx', '0.5em').attr('dy', '0.5em').text(function (d) {
+                }).attr('dx', '0.5em').attr('dy', '0') //'0.5em')
+                .text(function (d) {
                     return d.label;
                 }).call(wrap, groupWidth);
 
@@ -137,6 +138,8 @@
                 return Math.max(options.intervalMinWidth, x(d.to) - x(d.from));
             }).attr('height', intervalBarHeight).attr('y', intervalBarMargin).attr('x', function (d) {
                 return x(d.from);
+            }).on('click', function (d) {
+                !d.onClick || d.onClick(d);
             });
 
             // interval text
@@ -191,7 +194,7 @@
                         dx = parseFloat(text.attr("dx")),
                         dy = parseFloat(text.attr("dy")),
                         lines = [];
-                    var tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
+                    var tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dx", dx + "em").attr("dy", dy + "em");
                     while (word = words.pop()) {
                         line.push(word);
                         tspan.text(line.join(" "));

@@ -119,7 +119,7 @@ class TimelineChart {
                     return (groupHeight * i) + (groupHeight / 2) ; //+ 5.5;
                 })
                 .attr('dx', '0.5em')
-                .attr('dy', '0.5em')
+                .attr('dy', '0')  //'0.5em')
                 .text(d => d.label)
                 .call(wrap, groupWidth);
 
@@ -145,7 +145,8 @@ class TimelineChart {
             .attr('width', (d) => Math.max(options.intervalMinWidth, x(d.to) - x(d.from)))
             .attr('height', intervalBarHeight)
             .attr('y', intervalBarMargin)
-            .attr('x', (d) => x(d.from));
+            .attr('x', (d) => x(d.from))
+            .on('click', (d) => { !d.onClick || d.onClick(d); });
 
         // interval text
         let intervalTexts = groupIntervalItems
@@ -207,7 +208,7 @@ class TimelineChart {
                 dx = parseFloat(text.attr("dx")),
                 dy = parseFloat(text.attr("dy")),
                 lines = [];
-                var tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
+                var tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dx", dx + "em").attr("dy", dy + "em");
                 while (word = words.pop()) 
                 {
                     line.push(word);

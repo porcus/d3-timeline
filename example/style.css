@@ -120,50 +120,6 @@ circle.blue-dot {
 }
 
 
-/* Tiny Flex Grid */
-
-/* [flex] {
-    display: flex;
-}
-[flex-fill] {
-    flex: 1;
-}
-[flex-full-center] {
-    align-items: center;
-    justify-content: center;
-}
-[flex-direction=row] {
-    flex-direction: row;
-}
-[flex-direction=column] {
-    flex-direction: column;
-}
-[flex-size="40"] {
-    flex: 40;
-}
-[flex-size="60"] {
-    flex: 60;
-} */
-
-
-
-/* .row {
-    margin: 30px 0;
-}
-
-/ * simple column layout * /
-.column {
-    float: left;
-    width: 50%;
-}
-
-/ * Clear floats after the columns * /
-.row:after {
-    content: "";
-    display: table;
-    clear: both;
-} */
-
 
 
 
@@ -194,4 +150,65 @@ circle.blue-dot {
     display: inline-block;
     color: #333;
     display: inline-block;
+}
+
+
+.highlighted {
+    background: #d5eafd;
+}
+
+
+
+@media only screen and (max-width: 1300px) {
+	
+	/* Force table to not be like tables anymore */
+	.responsive-table table, 
+	.responsive-table thead, 
+	.responsive-table tbody, 
+	.responsive-table th, 
+	.responsive-table td, 
+	.responsive-table tr { 
+		display: block; 
+	}
+ 
+	/* Hide table headers (but not display: none;, for accessibility) */
+	.responsive-table thead tr { 
+		position: absolute;
+		top: -9999px;
+		left: -9999px;
+	}
+ 
+	.responsive-table tr { border: 1px solid #ccc; }
+ 
+	.responsive-table td { 
+		/* Behave  like a "row" */
+		border: none;
+		border-bottom: 1px solid #eee; 
+		position: relative;
+		padding: 0 0 0 30% !important; 
+		white-space: normal;
+		text-align:left;
+	}
+ 
+	.responsive-table td:before { 
+		/* Now like a table header */
+		position: absolute;
+		/* Top/left values mimic padding */
+		/* top: 6px; */
+		left: 6px;
+		width: 45%; 
+		padding-right: 10px; 
+		white-space: nowrap;
+		text-align:left;
+		font-weight: bold;
+	}
+ 
+	/*
+	Label the data
+	*/
+	.responsive-table td:before { content: attr(data-title); }
+}
+
+.link {
+    cursor: pointer;
 }
