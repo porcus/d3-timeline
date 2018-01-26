@@ -83,19 +83,21 @@
                 height = groupHeight * data.length;
             }
 
-            var x = d3.time.scale().domain([minDt, maxDt]).range([groupWidth, width]);
+            var xTimeScale = d3.time.scale().domain([minDt, maxDt]).range([groupWidth, width]);
 
             // X axis ticks
-            var xAxis = d3.svg.axis().scale(x).orient('top') // set to 'bottom' for a bottom-aligned axis and to 'top' for a top-aligned axis
+            var xAxis = d3.svg.axis().scale(xTimeScale).orient('top') // set to 'bottom' for a bottom-aligned axis and to 'top' for a top-aligned axis
             .tickSize(height); // set to height for a bottom-aligned axis and to -height for a top-aligned axis
 
-            var zoom = d3.behavior.zoom().x(x).on('zoom', zoomed);
+            var zoom = d3.behavior.zoom().x(xTimeScale).on('zoom', zoomed);
 
-            var svg = d3.select(element).append('svg').attr('width', width + margin.left + margin.right).attr('height', height + margin.top + margin.bottom).append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')').call(zoom);
+            var _svg = d3.select(element).append('svg').attr('width', width + margin.left + margin.right).attr('height', height + margin.top + margin.bottom);
+            var svg = _svg.append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')').call(zoom);
 
-            svg.append('defs').append('clipPath').attr('id', 'chart-content').append('rect').attr('x', groupWidth).attr('y', 0).attr('height', height).attr('width', width - groupWidth);
+            var clipPathRect = svg.append('defs').append('clipPath').attr('id', 'chart-content').append('rect').attr('x', groupWidth).attr('y', 0).attr('height', height).attr('width', width - groupWidth);
 
-            svg.append('rect').attr('class', 'chart-bounds').attr('x', groupWidth).attr('y', 0).attr('height', height).attr('width', width - groupWidth);
+            // Invisible rect covering chart bounds, ensuring that all interactions intended for the chart will be raised as events on SVG elements
+            var interactionRect = svg.append('rect').attr('class', 'chart-bounds').attr('x', groupWidth).attr('y', 0).attr('height', height).attr('width', width - groupWidth);
 
             // Axis with labels and ticks
             svg.append('g').attr('class', 'x axis').attr('transform', 'translate(0,' + height + ')').call(xAxis);
@@ -110,6 +112,27 @@
             }).attr('y2', function (d, i) {
                 return groupHeight * (i + 1);
             });
+
+            // Monitor for change in size of containing element
+            setInterval(handleWidthChange, 1000);
+
+            function handleWidthChange() {
+                var newWidth = element.clientWidth - margin.left - margin.right - 2;
+
+                if (newWidth != width) {
+                    //console.log('xTimeScale', xTimeScale);
+                    //console.log("old width: ", width);
+                    //console.log("new width: ", newWidth);
+                    width = newWidth;
+
+                    _svg.attr("width", width);
+                    groupSection.attr('x2', width);
+                    clipPathRect.attr("width", width);
+                    interactionRect.attr("width", width - groupWidth);
+                    xTimeScale.range([xTimeScale.range()[0], width]);
+                    zoomed();
+                }
+            }
 
             // group label text (for each series)
             if (!options.hideGroupLabels) {
@@ -135,9 +158,9 @@
             var intervalBarHeight = 0.8 * groupHeight;
             var intervalBarMargin = (groupHeight - intervalBarHeight) / 2;
             var intervals = groupIntervalItems.append('rect').attr('class', withCustom('interval')).attr('width', function (d) {
-                return Math.max(options.intervalMinWidth, x(d.to) - x(d.from));
+                return Math.max(options.intervalMinWidth, xTimeScale(d.to) - xTimeScale(d.from));
             }).attr('height', intervalBarHeight).attr('y', intervalBarMargin).attr('x', function (d) {
-                return x(d.from);
+                return xTimeScale(d.from);
             }).on('click', function (d) {
                 !d.onClick || d.onClick(d);
             });
@@ -147,7 +170,7 @@
                 return d.label || '';
             }) //  (typeof(d.label) === 'function' ? d.label(d) : d.label) || '')
             .attr('fill', 'white').attr('class', withCustom('interval-text')).attr('y', groupHeight / 2 + 5).attr('x', function (d) {
-                return x(d.from);
+                return xTimeScale(d.from);
             });
 
             var groupDotItems = svg.selectAll('.group-dot-item').data(data).enter().append('g').attr('clip-path', 'url(#chart-content)').attr('class', 'item').attr('transform', function (d, i) {
@@ -159,7 +182,7 @@
             }).enter();
 
             var dots = groupDotItems.append('circle').attr('class', withCustom('dot')).attr('cx', function (d) {
-                return x(d.at);
+                return xTimeScale(d.at);
             }).attr('cy', groupHeight / 2).attr('r', 7).on('click', function (d) {
                 !d.onClick || d.onClick(d);
             });
@@ -210,7 +233,7 @@
             }
 
             function updateNowMarker() {
-                var nowX = x(new Date());
+                var nowX = xTimeScale(new Date());
 
                 self.now.attr('x1', nowX).attr('x2', nowX);
             }
@@ -226,7 +249,7 @@
                     self.onVizChangeFn.call(self, {
                         scale: d3.event.scale,
                         translate: d3.event.translate,
-                        domain: x.domain()
+                        domain: xTimeScale.domain()
                     });
                 }
 
@@ -237,12 +260,12 @@
                 svg.select('.x.axis').call(xAxis);
 
                 svg.selectAll('circle.dot').attr('cx', function (d) {
-                    return x(d.at);
+                    return xTimeScale(d.at);
                 });
                 svg.selectAll('rect.interval').attr('x', function (d) {
-                    return x(d.from);
+                    return xTimeScale(d.from);
                 }).attr('width', function (d) {
-                    return Math.max(options.intervalMinWidth, x(d.to) - x(d.from));
+                    return Math.max(options.intervalMinWidth, xTimeScale(d.to) - xTimeScale(d.from));
                 });
 
                 svg.selectAll('.interval-text').attr('x', function (d) {
@@ -284,8 +307,8 @@
 
                 function getTextPositionData(d) {
                     this.textSizeInPx = this.textSizeInPx || this.getComputedTextLength();
-                    var from = x(d.from);
-                    var to = x(d.to);
+                    var from = xTimeScale(d.from);
+                    var to = xTimeScale(d.to);
                     return {
                         xPosition: from,
                         upToPosition: to,

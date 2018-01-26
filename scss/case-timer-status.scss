@@ -1,0 +1,178 @@
+
+.chart-container {
+    border: solid 1px #444; 
+    overflow-y: overlay;
+}
+
+.heading {
+    font-size: 24pt;
+    font-weight: bold;
+    margin-bottom: .5em;
+}
+
+// custom timeline styles
+.timeline-chart {
+
+    // default interval colors
+    .interval {
+        fill: white;
+        stroke: gray;
+    }
+    .interval-text {
+        fill: #333;
+        stroke: #333;
+    }
+
+    // green
+    .interval-green {
+        &.interval {
+            fill: green;
+            stroke: black;
+        }
+        // &.interval-text {
+        //     fill: black;
+        //     stroke: black;
+        // }
+    }
+
+    // yellow
+    .interval-yellow {
+        &.interval {
+            fill: yellow;
+            stroke: black;
+        }
+        // &.interval-text {
+        //     fill: black;
+        //     stroke: black;
+        // }
+    }
+
+    // orange
+    .interval-orange {
+        &.interval {
+            fill: orange;
+            stroke: black;
+        }
+        // &.interval-text {
+        //     fill: black;
+        //     stroke: black;
+        // }
+    }
+
+    // red
+    .interval-red {
+        &.interval {
+            fill: red;
+            stroke: black;
+        }
+        // &.interval-text {
+        //     fill: black;
+        //     stroke: black;
+        // }
+    }
+
+    // white
+    .interval-white {
+        &.interval {
+            fill: white;
+            stroke: black;
+        }
+        // &.interval-text {
+        //     fill: black;
+        //     stroke: black;
+        // }
+    }
+
+    // default point colors
+    circle.dot.point-white {
+        fill: white;
+        stroke: black;
+    }
+
+}
+
+
+// Override d3 tip styling
+.d3-tip {
+    font-weight: normal;
+    border-radius: 8px;
+    line-height: 1.2;
+    // background: white;
+    // color: black;
+}
+
+
+// Case Timer Event Styles
+.details-container {
+    border: solid 1px #444;
+    overflow: scroll;
+}
+
+// table row highlight
+.highlighted {
+    background: #d5eafd;
+}
+
+
+%responsive-table {
+    /* Force table to not be like tables anymore */
+    table, 
+    thead, 
+    tbody, 
+    th, 
+    td, 
+    tr { 
+        display: block; 
+    }
+
+    /* Hide table headers (but not display: none;, for accessibility) */
+    thead tr { 
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+
+    tr { border: 1px solid #ccc; }
+
+    td { 
+        /* Behave  like a "row" */
+        border: none;
+        border-bottom: 1px solid #eee; 
+        position: relative;
+        padding: 0 0 0 30% !important; 
+        white-space: normal;
+        text-align:left;
+    }
+
+    td:before { 
+        /* Now like a table header */
+        position: absolute;
+        /* Top/left values mimic padding */
+        /* top: 6px; */
+        left: 6px;
+        width: 45%; 
+        padding-right: 10px; 
+        white-space: nowrap;
+        text-align:left;
+        font-weight: bold;
+    }
+
+    /*
+    Label the data
+    */
+    td:before { content: attr(data-title); }
+}
+
+// responsive table styles
+@media only screen and (max-width: 1600px) {
+    .responsive-table-1600 {
+        @extend %responsive-table;
+    }
+}
+
+@media only screen and (max-width: 1200px) {
+    .responsive-table-1200 {
+        @extend %responsive-table;
+    }
+}
+

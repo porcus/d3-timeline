@@ -23,9 +23,11 @@
     stroke-width: 3; }
 
 .timeline-chart .interval-text {
-  pointer-events: none; }
+  pointer-events: none;
+  fill: white;
+  stroke: white; }
 
-.timeline-chart rect.interval {
+.timeline-chart .interval {
   ry: 5;
   rx: 5;
   fill: black;

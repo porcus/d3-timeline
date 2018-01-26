@@ -24,13 +24,17 @@
         }
         cursor: pointer;
     }
+
     .interval-text {
         pointer-events: none;
+        fill: white;
+        stroke: white;
     }
-    rect.interval {
+    .interval {
         ry: 5;
         rx: 5;
         fill: black;
         stroke: #2b2b2b;
     }
+
 }

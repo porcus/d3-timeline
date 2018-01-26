@@ -1,0 +1,93 @@
+.chart-container {
+  border: solid 1px #444;
+  overflow-y: overlay; }
+
+.heading {
+  font-size: 24pt;
+  font-weight: bold;
+  margin-bottom: .5em; }
+
+.timeline-chart .interval {
+  fill: white;
+  stroke: gray; }
+
+.timeline-chart .interval-text {
+  fill: #333;
+  stroke: #333; }
+
+.timeline-chart .interval-green.interval {
+  fill: green;
+  stroke: black; }
+
+.timeline-chart .interval-yellow.interval {
+  fill: yellow;
+  stroke: black; }
+
+.timeline-chart .interval-orange.interval {
+  fill: orange;
+  stroke: black; }
+
+.timeline-chart .interval-red.interval {
+  fill: red;
+  stroke: black; }
+
+.timeline-chart .interval-white.interval {
+  fill: white;
+  stroke: black; }
+
+.timeline-chart circle.dot.point-white {
+  fill: white;
+  stroke: black; }
+
+.d3-tip {
+  font-weight: normal;
+  border-radius: 8px;
+  line-height: 1.2; }
+
+.details-container {
+  border: solid 1px #444;
+  overflow: scroll; }
+
+.highlighted {
+  background: #d5eafd; }
+
+@media only screen and (max-width: 1600px) {
+  /* Force table to not be like tables anymore */
+  .responsive-table table,
+  .responsive-table thead,
+  .responsive-table tbody,
+  .responsive-table th,
+  .responsive-table td,
+  .responsive-table tr {
+    display: block; }
+  /* Hide table headers (but not display: none;, for accessibility) */
+  .responsive-table thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px; }
+  .responsive-table tr {
+    border: 1px solid #ccc; }
+  .responsive-table td {
+    /* Behave  like a "row" */
+    border: none;
+    border-bottom: 1px solid #eee;
+    position: relative;
+    padding: 0 0 0 30% !important;
+    white-space: normal;
+    text-align: left; }
+  .responsive-table td:before {
+    /* Now like a table header */
+    position: absolute;
+    /* Top/left values mimic padding */
+    /* top: 6px; */
+    left: 6px;
+    width: 45%;
+    padding-right: 10px;
+    white-space: nowrap;
+    text-align: left;
+    font-weight: bold; }
+  /*
+	Label the data
+	*/
+  .responsive-table td:before {
+    content: attr(data-title); } }

@@ -41,28 +41,29 @@ class TimelineChart {
             height = groupHeight * data.length;
         }
 
-        let x = d3.time.scale()
+        let xTimeScale = d3.time.scale()
             .domain([minDt, maxDt])
             .range([groupWidth, width]);
 
         // X axis ticks
         let xAxis = d3.svg.axis()
-            .scale(x)
+            .scale(xTimeScale)
             .orient('top') // set to 'bottom' for a bottom-aligned axis and to 'top' for a top-aligned axis
             .tickSize(height); // set to height for a bottom-aligned axis and to -height for a top-aligned axis
 
         let zoom = d3.behavior.zoom()
-            .x(x)
+            .x(xTimeScale)
             .on('zoom', zoomed);
 
-        let svg = d3.select(element).append('svg')
+        let _svg = d3.select(element).append('svg')
             .attr('width', width + margin.left + margin.right)
-            .attr('height', height + margin.top + margin.bottom)
+            .attr('height', height + margin.top + margin.bottom);
+        let svg = _svg
             .append('g')
             .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
             .call(zoom);
 
-        svg.append('defs')
+        let clipPathRect = svg.append('defs')
             .append('clipPath')
             .attr('id', 'chart-content')
             .append('rect')
@@ -71,7 +72,8 @@ class TimelineChart {
             .attr('height', height)
             .attr('width', width - groupWidth)
 
-        svg.append('rect')
+        // Invisible rect covering chart bounds, ensuring that all interactions intended for the chart will be raised as events on SVG elements
+        let interactionRect = svg.append('rect')
             .attr('class', 'chart-bounds')
             .attr('x', groupWidth)
             .attr('y', 0)
@@ -106,6 +108,28 @@ class TimelineChart {
             .attr('y2', (d, i) => {
                 return groupHeight * (i + 1);
             });
+
+        // Monitor for change in size of containing element
+        setInterval(handleWidthChange, 1000);
+
+        function handleWidthChange() {
+            var newWidth = element.clientWidth - margin.left - margin.right - 2;
+
+            if (newWidth != width)
+            {
+                //console.log('xTimeScale', xTimeScale);
+                //console.log("old width: ", width);
+                //console.log("new width: ", newWidth);
+                width = newWidth;
+
+                _svg.attr("width", width) ;
+                groupSection.attr('x2', width);
+                clipPathRect.attr("width", width);
+                interactionRect.attr("width", width - groupWidth);
+                xTimeScale.range([xTimeScale.range()[0], width]);
+                zoomed();
+            }
+        }
 
         // group label text (for each series)
         if (!options.hideGroupLabels) {
@@ -142,10 +166,10 @@ class TimelineChart {
         let intervals = groupIntervalItems
             .append('rect')
             .attr('class', withCustom('interval'))
-            .attr('width', (d) => Math.max(options.intervalMinWidth, x(d.to) - x(d.from)))
+            .attr('width', (d) => Math.max(options.intervalMinWidth, xTimeScale(d.to) - xTimeScale(d.from)))
             .attr('height', intervalBarHeight)
             .attr('y', intervalBarMargin)
-            .attr('x', (d) => x(d.from))
+            .attr('x', (d) => xTimeScale(d.from))
             .on('click', (d) => { !d.onClick || d.onClick(d); });
 
         // interval text
@@ -155,7 +179,7 @@ class TimelineChart {
             .attr('fill', 'white')
             .attr('class', withCustom('interval-text'))
             .attr('y', (groupHeight / 2) + 5)
-            .attr('x', (d) => x(d.from));
+            .attr('x', (d) => xTimeScale(d.from));
 
         let groupDotItems = svg.selectAll('.group-dot-item')
             .data(data)
@@ -173,7 +197,7 @@ class TimelineChart {
         let dots = groupDotItems
             .append('circle')
             .attr('class', withCustom('dot'))
-            .attr('cx', d => x(d.at))
+            .attr('cx', d => xTimeScale(d.at))
             .attr('cy', groupHeight / 2)
             .attr('r', 7)
             .on('click', (d) => { !d.onClick || d.onClick(d); });
@@ -194,6 +218,7 @@ class TimelineChart {
         if (options.enableLiveTimer) {
             setInterval(updateNowMarker, options.timerTickInterval);
         }
+
 
         function wrap(text, width, anchorPosition) 
         {
@@ -231,7 +256,7 @@ class TimelineChart {
         }
       
         function updateNowMarker() {
-            let nowX = x(new Date());
+            let nowX = xTimeScale(new Date());
 
             self.now.attr('x1', nowX).attr('x2', nowX);
         }
@@ -245,7 +270,7 @@ class TimelineChart {
                 self.onVizChangeFn.call(self, {
                     scale: d3.event.scale,
                     translate: d3.event.translate,
-                    domain: x.domain()
+                    domain: xTimeScale.domain()
                 });
             }
 
@@ -255,8 +280,8 @@ class TimelineChart {
 
             svg.select('.x.axis').call(xAxis);
 
-            svg.selectAll('circle.dot').attr('cx', d => x(d.at));
-            svg.selectAll('rect.interval').attr('x', d => x(d.from)).attr('width', d => Math.max(options.intervalMinWidth, x(d.to) - x(d.from)));
+            svg.selectAll('circle.dot').attr('cx', d => xTimeScale(d.at));
+            svg.selectAll('rect.interval').attr('x', d => xTimeScale(d.from)).attr('width', d => Math.max(options.intervalMinWidth, xTimeScale(d.to) - xTimeScale(d.from)));
 
             svg.selectAll('.interval-text').attr('x', function(d) {
                     let positionData = getTextPositionData.call(this, d);
@@ -298,8 +323,8 @@ class TimelineChart {
 
             function getTextPositionData(d) {
                 this.textSizeInPx = this.textSizeInPx || this.getComputedTextLength();
-                var from = x(d.from);
-                var to = x(d.to);
+                var from = xTimeScale(d.from);
+                var to = xTimeScale(d.to);
                 return {
                     xPosition: from,
                     upToPosition: to,
@@ -331,6 +356,7 @@ class TimelineChart {
         this.onVizChangeFn = fn;
         return this;
     }
+
 }
 
 TimelineChart.TYPE = {
