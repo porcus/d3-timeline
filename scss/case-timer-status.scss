@@ -114,7 +114,7 @@
 }
 
 
-%responsive-table {
+@mixin responsive-table {
     /* Force table to not be like tables anymore */
     table, 
     thead, 
@@ -157,22 +157,24 @@
         font-weight: bold;
     }
 
-    /*
-    Label the data
-    */
+    // Label the data
     td:before { content: attr(data-title); }
 }
 
 // responsive table styles
 @media only screen and (max-width: 1600px) {
-    .responsive-table-1600 {
-        @extend %responsive-table;
-    }
+    .responsive-table-1600 { @include responsive-table(); }
 }
 
-@media only screen and (max-width: 1200px) {
-    .responsive-table-1200 {
-        @extend %responsive-table;
-    }
+@media only screen and (max-width: 1500px) {
+    .responsive-table-1500 { @include responsive-table(); }
+}
+
+@media only screen and (max-width: 1300px) {
+    .responsive-table-1300 { @include responsive-table(); }
+}
+
+@media only screen and (max-width: 1100px) {
+    .responsive-table-1100 { @include responsive-table(); }
 }
 

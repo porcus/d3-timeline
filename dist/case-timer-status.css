@@ -52,42 +52,157 @@
   background: #d5eafd; }
 
 @media only screen and (max-width: 1600px) {
-  /* Force table to not be like tables anymore */
-  .responsive-table table,
-  .responsive-table thead,
-  .responsive-table tbody,
-  .responsive-table th,
-  .responsive-table td,
-  .responsive-table tr {
-    display: block; }
-  /* Hide table headers (but not display: none;, for accessibility) */
-  .responsive-table thead tr {
-    position: absolute;
-    top: -9999px;
-    left: -9999px; }
-  .responsive-table tr {
-    border: 1px solid #ccc; }
-  .responsive-table td {
-    /* Behave  like a "row" */
-    border: none;
-    border-bottom: 1px solid #eee;
-    position: relative;
-    padding: 0 0 0 30% !important;
-    white-space: normal;
-    text-align: left; }
-  .responsive-table td:before {
-    /* Now like a table header */
-    position: absolute;
-    /* Top/left values mimic padding */
-    /* top: 6px; */
-    left: 6px;
-    width: 45%;
-    padding-right: 10px;
-    white-space: nowrap;
-    text-align: left;
-    font-weight: bold; }
-  /*
-	Label the data
-	*/
-  .responsive-table td:before {
-    content: attr(data-title); } }
+  .responsive-table-1600 {
+    /* Force table to not be like tables anymore */
+    /* Hide table headers (but not display: none;, for accessibility) */ }
+    .responsive-table-1600 table,
+    .responsive-table-1600 thead,
+    .responsive-table-1600 tbody,
+    .responsive-table-1600 th,
+    .responsive-table-1600 td,
+    .responsive-table-1600 tr {
+      display: block; }
+    .responsive-table-1600 thead tr {
+      position: absolute;
+      top: -9999px;
+      left: -9999px; }
+    .responsive-table-1600 tr {
+      border: 1px solid #ccc; }
+    .responsive-table-1600 td {
+      /* Behave  like a "row" */
+      border: none;
+      border-bottom: 1px solid #eee;
+      position: relative;
+      padding: 0 0 0 30% !important;
+      white-space: normal;
+      text-align: left; }
+    .responsive-table-1600 td:before {
+      /* Now like a table header */
+      position: absolute;
+      /* Top/left values mimic padding */
+      /* top: 6px; */
+      left: 6px;
+      width: 45%;
+      padding-right: 10px;
+      white-space: nowrap;
+      text-align: left;
+      font-weight: bold; }
+    .responsive-table-1600 td:before {
+      content: attr(data-title); } }
+
+@media only screen and (max-width: 1500px) {
+  .responsive-table-1500 {
+    /* Force table to not be like tables anymore */
+    /* Hide table headers (but not display: none;, for accessibility) */ }
+    .responsive-table-1500 table,
+    .responsive-table-1500 thead,
+    .responsive-table-1500 tbody,
+    .responsive-table-1500 th,
+    .responsive-table-1500 td,
+    .responsive-table-1500 tr {
+      display: block; }
+    .responsive-table-1500 thead tr {
+      position: absolute;
+      top: -9999px;
+      left: -9999px; }
+    .responsive-table-1500 tr {
+      border: 1px solid #ccc; }
+    .responsive-table-1500 td {
+      /* Behave  like a "row" */
+      border: none;
+      border-bottom: 1px solid #eee;
+      position: relative;
+      padding: 0 0 0 30% !important;
+      white-space: normal;
+      text-align: left; }
+    .responsive-table-1500 td:before {
+      /* Now like a table header */
+      position: absolute;
+      /* Top/left values mimic padding */
+      /* top: 6px; */
+      left: 6px;
+      width: 45%;
+      padding-right: 10px;
+      white-space: nowrap;
+      text-align: left;
+      font-weight: bold; }
+    .responsive-table-1500 td:before {
+      content: attr(data-title); } }
+
+@media only screen and (max-width: 1300px) {
+  .responsive-table-1300 {
+    /* Force table to not be like tables anymore */
+    /* Hide table headers (but not display: none;, for accessibility) */ }
+    .responsive-table-1300 table,
+    .responsive-table-1300 thead,
+    .responsive-table-1300 tbody,
+    .responsive-table-1300 th,
+    .responsive-table-1300 td,
+    .responsive-table-1300 tr {
+      display: block; }
+    .responsive-table-1300 thead tr {
+      position: absolute;
+      top: -9999px;
+      left: -9999px; }
+    .responsive-table-1300 tr {
+      border: 1px solid #ccc; }
+    .responsive-table-1300 td {
+      /* Behave  like a "row" */
+      border: none;
+      border-bottom: 1px solid #eee;
+      position: relative;
+      padding: 0 0 0 30% !important;
+      white-space: normal;
+      text-align: left; }
+    .responsive-table-1300 td:before {
+      /* Now like a table header */
+      position: absolute;
+      /* Top/left values mimic padding */
+      /* top: 6px; */
+      left: 6px;
+      width: 45%;
+      padding-right: 10px;
+      white-space: nowrap;
+      text-align: left;
+      font-weight: bold; }
+    .responsive-table-1300 td:before {
+      content: attr(data-title); } }
+
+@media only screen and (max-width: 1100px) {
+  .responsive-table-1100 {
+    /* Force table to not be like tables anymore */
+    /* Hide table headers (but not display: none;, for accessibility) */ }
+    .responsive-table-1100 table,
+    .responsive-table-1100 thead,
+    .responsive-table-1100 tbody,
+    .responsive-table-1100 th,
+    .responsive-table-1100 td,
+    .responsive-table-1100 tr {
+      display: block; }
+    .responsive-table-1100 thead tr {
+      position: absolute;
+      top: -9999px;
+      left: -9999px; }
+    .responsive-table-1100 tr {
+      border: 1px solid #ccc; }
+    .responsive-table-1100 td {
+      /* Behave  like a "row" */
+      border: none;
+      border-bottom: 1px solid #eee;
+      position: relative;
+      padding: 0 0 0 30% !important;
+      white-space: normal;
+      text-align: left; }
+    .responsive-table-1100 td:before {
+      /* Now like a table header */
+      position: absolute;
+      /* Top/left values mimic padding */
+      /* top: 6px; */
+      left: 6px;
+      width: 45%;
+      padding-right: 10px;
+      white-space: nowrap;
+      text-align: left;
+      font-weight: bold; }
+    .responsive-table-1100 td:before {
+      content: attr(data-title); } }
