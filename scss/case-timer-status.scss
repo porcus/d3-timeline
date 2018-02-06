@@ -13,6 +13,11 @@
 // custom timeline styles
 .timeline-chart {
 
+    // lines separating each group/"track"/series of data
+    .group-section {
+        stroke: #ddd;
+    }
+
     // default interval colors
     .interval {
         fill: white;

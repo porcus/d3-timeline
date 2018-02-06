@@ -7,6 +7,9 @@
   font-weight: bold;
   margin-bottom: .5em; }
 
+.timeline-chart .group-section {
+  stroke: #ddd; }
+
 .timeline-chart .interval {
   fill: white;
   stroke: gray; }

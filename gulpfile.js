@@ -9,7 +9,7 @@
     var autoprefixer = require('gulp-autoprefixer');
 
     gulp.task('js:build', () => {
-        return gulp.src('js/timeline-chart.js')
+        return gulp.src('js/*.js')
             .pipe(sourcemaps.init())
             .pipe(babel())
             .pipe(sourcemaps.write('.'))
