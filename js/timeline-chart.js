@@ -1,3 +1,48 @@
+/*
+Provided data should match the following grammar/rules:
+
+<timeline_data> : 
+[
+    <series_data>,
+    <series_data>,
+    ...
+]
+
+<series_data> :
+[
+    label: <label-expression>,
+    data: 
+    [
+        <series_item>
+    ]
+]
+
+<series_item> : <series_interval> OR <series_point>
+
+<series_interval> : 
+{
+    type: TimelineChart.TYPE.INTERVAL,
+    label: <label-expression>,
+    from: <Date>,
+    to: <Date>,
+    customClass: <css-class>,
+    onClick: <function>
+}
+
+<series_point> :
+{
+    type: TimelineChart.TYPE.INTERVAL,
+    label: <label>,
+    at: <Date>,
+    customClass: <css-class>,
+    onClick: <function>
+}
+
+<label-expression> : <string>
+
+<css-class> : <string>
+
+*/
 class TimelineChart {
     constructor(element, data, opts) {
         let self = this;
@@ -12,7 +57,7 @@ class TimelineChart {
         let maxDt = d3.max(allElements, this.getPointMaxDt);
         // zoom out just slightly, to allow for a little space on either end of the timeline
         let dateDelta = maxDt.getTime() - minDt.getTime();
-        let zoomOutPct = .02;
+        let zoomOutPct = .02;  // 2%
         minDt = new Date(minDt.getTime() - (dateDelta * zoomOutPct));
         maxDt = new Date(maxDt.getTime() + (dateDelta * zoomOutPct));
 
@@ -29,7 +74,7 @@ class TimelineChart {
         let width = elementWidth - margin.left - margin.right;
         let height = elementHeight - margin.top - margin.bottom;
 
-        // Width of the group label area
+        // Width of the series label area
         let groupWidth = options.hideGroupLabels ? 0 : 400;
         // Height of each section containing a horizontal series.  By default, fit each series into the available vertical space.
         let groupHeight = height / data.length;
@@ -51,19 +96,23 @@ class TimelineChart {
             .orient('top') // set to 'bottom' for a bottom-aligned axis and to 'top' for a top-aligned axis
             .tickSize(height); // set to height for a bottom-aligned axis and to -height for a top-aligned axis
 
+        // In order to upgrade from v3 to v4, this needs to change.
+        // See here:  https://coderwall.com/p/psogia/simplest-way-to-add-zoom-pan-on-d3-js
         let zoom = d3.behavior.zoom()
             .x(xTimeScale)
             .on('zoom', zoomed);
 
-        let _svg = d3.select(element).append('svg')
+        let svg = d3.select(element).append('svg')
             .attr('width', width + margin.left + margin.right)
             .attr('height', height + margin.top + margin.bottom);
-        let svg = _svg
+
+        // All elements affected by the zooming behavior are created in the zoom() fn.
+        let svg_g = svg
             .append('g')
             .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
             .call(zoom);
 
-        let clipPathRect = svg.append('defs')
+        let clipPathRect = svg_g.append('defs')
             .append('clipPath')
             .attr('id', 'chart-content')
             .append('rect')
@@ -73,33 +122,41 @@ class TimelineChart {
             .attr('width', width - groupWidth)
 
         // Invisible rect covering chart bounds, ensuring that all interactions intended for the chart will be raised as events on SVG elements
-        let interactionRect = svg.append('rect')
+        let interactionRect = svg_g.append('rect')
             .attr('class', 'chart-bounds')
             .attr('x', groupWidth)
             .attr('y', 0)
             .attr('height', height)
             .attr('width', width - groupWidth)
 
-        // Axis with labels and ticks
-        svg.append('g')
-            .attr('class', 'x axis')
-            .attr('transform', 'translate(0,' + height + ')')
-            .call(xAxis);
-
         if (options.enableLiveTimer) {
-            self.now = svg.append('line')
+            self.now = svg_g.append('line')
                 .attr('clip-path', 'url(#chart-content)')
                 .attr('class', 'vertical-marker now')
                 .attr("y1", 0)
                 .attr("y2", height);
         }
 
-        // horizontal lines between groups
-        let groupSection = svg.selectAll('.group-section')
+        var c20 = d3.scale.category20c();
+        let seriesBackground = svg_g.selectAll('.series-background')
+            .data(data)
+            .enter()
+            .append('rect')
+            .attr('class', 'series-background')
+            .attr('x', 0)
+            .attr('y', (d, i) => { return groupHeight * i; })
+            .attr('width', width)
+            .attr('height', groupHeight)
+            .style('fill', (d, i) => {
+                return c20(d.groupingKey || i);
+            });
+
+        // horizontal lines between groups.  (This used to use the 'group-section' class, but is now using the 'series' terminology.)
+        let seriesDividers = svg_g.selectAll('.series-divider')
             .data(data)
             .enter()
             .append('line')
-            .attr('class', 'group-section')
+            .attr('class', 'series-divider')
             .attr('x1', 0)
             .attr('x2', width)
             .attr('y1', (d, i) => {
@@ -108,6 +165,12 @@ class TimelineChart {
             .attr('y2', (d, i) => {
                 return groupHeight * (i + 1);
             });
+
+        // Axis with labels and ticks
+        svg_g.append('g')
+            .attr('class', 'x axis')
+            .attr('transform', 'translate(0,' + height + ')')
+            .call(xAxis);
 
         // Monitor for change in size of containing element
         setInterval(handleWidthChange, 1000);
@@ -122,8 +185,9 @@ class TimelineChart {
                 //console.log("new width: ", newWidth);
                 width = newWidth;
 
-                _svg.attr("width", width) ;
-                groupSection.attr('x2', width);
+                svg.attr("width", width) ;
+                seriesDividers.attr('x2', width);
+                seriesBackground.attr('width', width);
                 clipPathRect.attr("width", width);
                 interactionRect.attr("width", width - groupWidth);
                 xTimeScale.range([xTimeScale.range()[0], width]);
@@ -131,13 +195,13 @@ class TimelineChart {
             }
         }
 
-        // group label text (for each series)
+        // heading / label text (for each series)
         if (!options.hideGroupLabels) {
-            let groupLabels = svg.selectAll('.group-label')
+            let groupLabels = svg_g.selectAll('.series-label')
                 .data(data)
                 .enter()
                 .append('text')
-                .attr('class', 'group-label')
+                .attr('class', 'series-label')
                 .attr('x', '0.5em') //0)
                 .attr('y', (d, i) => {
                     return (groupHeight * i) + (groupHeight / 2) ; //+ 5.5;
@@ -147,10 +211,10 @@ class TimelineChart {
                 .text(d => d.label)
                 .call(wrap, groupWidth);
 
-            let lineSection = svg.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', height).attr('stroke', 'orange');
+            let lineSection = svg_g.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', height).attr('stroke', 'orange');
         }
 
-        let groupIntervalItems = svg.selectAll('.group-interval-item')
+        let groupIntervalItems = svg_g.selectAll('.series-interval-item')
             .data(data)
             .enter()
             .append('g')
@@ -181,7 +245,7 @@ class TimelineChart {
             .attr('y', (groupHeight / 2) + 5)
             .attr('x', (d) => xTimeScale(d.from));
 
-        let groupDotItems = svg.selectAll('.group-dot-item')
+        let groupDotItems = svg_g.selectAll('.series-dot-item')
             .data(data)
             .enter()
             .append('g')
@@ -205,7 +269,7 @@ class TimelineChart {
         if (options.tip) {
             if (d3.tip) {
                 let tip = d3.tip().attr('class', 'd3-tip').html(options.tip);
-                svg.call(tip);
+                svg_g.call(tip);
                 dots.on('mouseover', tip.show).on('mouseout', tip.hide);
                 intervals.on('mouseover', tip.show).on('mouseout', tip.hide);
             } else {
@@ -278,12 +342,12 @@ class TimelineChart {
                 updateNowMarker();
             }
 
-            svg.select('.x.axis').call(xAxis);
+            svg_g.select('.x.axis').call(xAxis);
 
-            svg.selectAll('circle.dot').attr('cx', d => xTimeScale(d.at));
-            svg.selectAll('rect.interval').attr('x', d => xTimeScale(d.from)).attr('width', d => Math.max(options.intervalMinWidth, xTimeScale(d.to) - xTimeScale(d.from)));
+            svg_g.selectAll('circle.dot').attr('cx', d => xTimeScale(d.at));
+            svg_g.selectAll('rect.interval').attr('x', d => xTimeScale(d.from)).attr('width', d => Math.max(options.intervalMinWidth, xTimeScale(d.to) - xTimeScale(d.from)));
 
-            svg.selectAll('.interval-text').attr('x', function(d) {
+            svg_g.selectAll('.interval-text').attr('x', function(d) {
                     let positionData = getTextPositionData.call(this, d);
                     if ((positionData.upToPosition - groupWidth - 10) < positionData.textWidth) {
                         return positionData.upToPosition;

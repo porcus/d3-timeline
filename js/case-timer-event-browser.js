@@ -109,30 +109,36 @@ class CaseTimerEventBrowser {
             { propertyLabel: "Snapshot Time", propertyValueSelector: d => d.SnapshotTime, onClick: null },
         ];
 
+        function renderCaseData(caseDataToRender) {
+            if (!caseDataToRender) { alert('case data was not provided.'); return; }
+            if ((caseDataToRender.Timers || []).length == 0) { alert('case data contains no timers'); return; }
+    
+            console.log("input caseData:", caseDataToRender);
+    
+            //normalizeProperties(caseTimerDataArray);
+    
+            let caseTimerTimelineData = transformCaseTimerDataToTimelineData(caseDataToRender.Timers);
+            console.log("caseTimerTimelineData:", caseTimerTimelineData);
+    
+            renderCaseTimersTable(caseDataToRender.Timers);
+    
+            renderTimeline(chartContainer, caseTimerTimelineData);
+        }
 
-        if (!caseData) { alert('case data was not provided.'); return; }
-        if ((caseData.Timers || []).length == 0) { alert('case data contains no timers'); return; }
+        self.renderCaseData = renderCaseData;
 
-        console.log("input caseData:", caseData);
-
-        //normalizeProperties(caseTimerDataArray);
-
-        let caseTimerTimelineData = transformCaseTimerDataToTimelineData(caseData.Timers);
-        console.log("caseTimerTimelineData:", caseTimerTimelineData);
-
-        renderCaseTimersTable(caseData.Timers);
-
-        renderTimeline(chartContainer, caseTimerTimelineData);
-
+        self.renderCaseData(caseData);
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
         function renderTimeline(container, timelineData) {
+            removeAllChildNodesOfElement(container);
+
             const timeline = new TimelineChart(container, timelineData, {
                 //enableLiveTimer: true, 
                 tip: formatTipText,
-                groupHeight: 50
+                groupHeight: 40
             }); //.onVizChange(e => console.log(e));
 
             // Resize container vertically to fit timeline
@@ -212,6 +218,13 @@ class CaseTimerEventBrowser {
 
         function renderTableOfObjects(tableContainer, propertyConfigs, itemsToRender, itemsToHighlight)
         {
+            // itemsToRender is required and must contain data
+            if (!itemsToRender)
+            {
+                alert('renderTableOfObjects called with no data');
+                return;
+            }
+
             itemsToHighlight = itemsToHighlight || [];
 
             var table = d3.select(tableContainer).append('table').classed('table', true);
@@ -270,76 +283,76 @@ class CaseTimerEventBrowser {
 
 
 
-        function renderEventList(events)
-        {
-            // case timer event container
-            let selection = d3.select(eventDetailsContainer).append('div')
-                .selectAll('.case-timer-event')
-                .data(events);
+        // function renderEventList(events)
+        // {
+        //     // case timer event container
+        //     let selection = d3.select(eventDetailsContainer).append('div')
+        //         .selectAll('.case-timer-event')
+        //         .data(events);
 
-            //caseTimerEventSelection.exit().remove();
+        //     //caseTimerEventSelection.exit().remove();
 
-            let caseTimerEventSelection = selection.enter()
-                .call(renderEventListItem);
+        //     let caseTimerEventSelection = selection.enter()
+        //         .call(renderEventListItem);
 
-            function renderEventListItem()
-            {
-                var caseTimerEventContainer = this.append('div').attr('class', 'case-timer-event');
-                // Render the event properties
-                caseTimerEventPropertyConfigs.forEach(pc => caseTimerEventContainer.call(d => renderProperty.bind(d)(pc)));
-            }
-        }
+        //     function renderEventListItem()
+        //     {
+        //         var caseTimerEventContainer = this.append('div').attr('class', 'case-timer-event');
+        //         // Render the event properties
+        //         caseTimerEventPropertyConfigs.forEach(pc => caseTimerEventContainer.call(d => renderProperty.bind(d)(pc)));
+        //     }
+        // }
 
-        function renderProperty(caseTimerEventPropertyConfig)
-        {
-            var {propertyLabel, propertyValueSelector, onClick} = caseTimerEventPropertyConfig;
+        // function renderProperty(caseTimerEventPropertyConfig)
+        // {
+        //     var {propertyLabel, propertyValueSelector, onClick} = caseTimerEventPropertyConfig;
 
-            let caseTimerProperty = this
-                .append('div')
-                .attr('class', 'case-timer-event-property');
-            let label = caseTimerProperty
-                .append('div')
-                .attr('class', 'case-timer-event-property-label')
-                .text(propertyLabel)
-            let caseTimerPropertyValue = caseTimerProperty
-                .append('div')
-                .attr('class', 'case-timer-event-property-value')
-                .html(d => {
-                    var propertyValue = propertyValueSelector(d);
+        //     let caseTimerProperty = this
+        //         .append('div')
+        //         .attr('class', 'case-timer-event-property');
+        //     let label = caseTimerProperty
+        //         .append('div')
+        //         .attr('class', 'case-timer-event-property-label')
+        //         .text(propertyLabel)
+        //     let caseTimerPropertyValue = caseTimerProperty
+        //         .append('div')
+        //         .attr('class', 'case-timer-event-property-value')
+        //         .html(d => {
+        //             var propertyValue = propertyValueSelector(d);
 
-                    if (propertyValue === undefined)
-                    {
-                        return "";
-                    }
-                    else if (propertyValue === null)
-                    {
-                        return "(null)";
-                    }
-                    else if (typeof propertyValue == 'string')
-                    {
-                        return propertyValue;
-                    }
-                    else if (typeof propertyValue == 'boolean')
-                    {
-                        return propertyValue;
-                    }
-                    else if (propertyValue.constructor == (new Date()).constructor)
-                    {
-                        return formatDate(propertyValue);
-                    }
-                    else if(!!onClick)
-                    {
-                        return "<span class='link'>(click here to view)</span>";
-                    }
-                    return '<em>(no value resolver defined)</em>'
-                })
-                .on("click", (d) => { 
-                    if (!!onClick)
-                    {
-                        onClick(d); 
-                    }
-                });
-        }
+        //             if (propertyValue === undefined)
+        //             {
+        //                 return "";
+        //             }
+        //             else if (propertyValue === null)
+        //             {
+        //                 return "(null)";
+        //             }
+        //             else if (typeof propertyValue == 'string')
+        //             {
+        //                 return propertyValue;
+        //             }
+        //             else if (typeof propertyValue == 'boolean')
+        //             {
+        //                 return propertyValue;
+        //             }
+        //             else if (propertyValue.constructor == (new Date()).constructor)
+        //             {
+        //                 return formatDate(propertyValue);
+        //             }
+        //             else if(!!onClick)
+        //             {
+        //                 return "<span class='link'>(click here to view)</span>";
+        //             }
+        //             return '<em>(no value resolver defined)</em>'
+        //         })
+        //         .on("click", (d) => { 
+        //             if (!!onClick)
+        //             {
+        //                 onClick(d); 
+        //             }
+        //         });
+        // }
 
 
         function displaySnapshotDetails(caseTimerSnapshot)
@@ -352,22 +365,6 @@ class CaseTimerEventBrowser {
             }
 
             renderTableOfObjects(selectedSnapshotContainer, caseTimerSnapshotPropertyConfigs, [caseTimerSnapshot], [caseTimerSnapshot]);
-            return;
-
-            // // case timer event container
-            // let selection = d3.select(selectedSnapshotContainer).append('div')
-            //     .selectAll('.case-timer-snapshot')
-            //     .data([caseTimerSnapshot]);
-
-            // //caseTimerEventSelection.exit().remove();
-
-            // let caseTimerSnapshotSelection = selection.enter();
-            //     //.call(renderEvent);
-
-            // var caseTimerSnapshotContainer = caseTimerSnapshotSelection.append('div')
-            //     .attr('class', 'case-timer-snapshot');
-            // // Render the snapshot properties
-            // caseTimerSnapshotPropertyConfigs.forEach(pc => caseTimerSnapshotContainer.call(d => renderProperty.bind(d)(pc)) );
         }
 
 
@@ -443,7 +440,7 @@ class CaseTimerEventBrowser {
 
             normalizeProperties(copyOfCaseTimerArray);
 
-            return copyOfCaseTimerArray.map(ct => 
+            var allTimelineSeries = copyOfCaseTimerArray.map(ct => 
             {
                 // for each case timer, this returns an array of data series, each of which can be plotted on the timeline
 
@@ -461,16 +458,18 @@ class CaseTimerEventBrowser {
                             },
                             at: new Date(d.key*1),
                             data: d.values,
-                            onClick: function(){ renderEventDetailsTable(ct.Events, d.values); }
+                            onClick: function(){ 
+                                renderCaseTimersTable(copyOfCaseTimerArray, [ ct ]);
+                                renderEventDetailsTable(ct.Events, d.values); 
+                            }
                         };
                     });
 
                 var eventsForTimerSeries = {
                     label: "All Events for timer ["+ct.Name+"]",
+                    groupingKey: ct.Id,  // The case timer Id is a suitable grouping key
                     data: points
                 };
-
-                var allSeriesForTimer = [ eventsForTimerSeries ];
 
                 var now = new Date();
                 var intervalConfigs = [
@@ -539,70 +538,100 @@ class CaseTimerEventBrowser {
                 };
 
                 // Create an array of interval groups
-                let groupedIntervals = d3.nest().key(eventIntervalGroupingKeyFn).entries(ct.Events).filter(o => o.key != "REMOVE").map(intervalGroup => {
+                // Using D3.nest and the event interval grouping fn, create a series of time intervals for each distinct group of data for this timer
+                let timerIntervalSeriesArray = d3.nest()
+                    .key(eventIntervalGroupingKeyFn).entries(ct.Events)
+                    .filter(o => o.key != "REMOVE") // exclude all interval groups that yield a key of "REMOVE"
+                    .map(intervalGroup => {
 
-                    var intervalConfigKey = intervalGroup.key.split('::')[0];
-                    var intervalConfig = intervalConfigs.find(ic => ic.key == intervalConfigKey);
+                        // extract the interval config key from the first part of the key
+                        var intervalConfigKey = intervalGroup.key.split('::')[0];
+                        // resolve the associated interval config using its key
+                        var intervalConfig = intervalConfigs.find(ic => ic.key == intervalConfigKey);
 
-                    //var ic = intervalConfigs.find(ic => evt.EventIdentifierString.includes(ic.startEventId) || evt.EventIdentifierString.includes(ic.endEventId));
-                    var eventsOfInterest = intervalGroup.values;
-                    // Create intervals for this group from the events
-                    let intervals = [];
-                    for(var i = 0; i < eventsOfInterest.length; i += 2)
-                    {
-                        let curEvt = eventsOfInterest[i];
-                        let nextEvt = eventsOfInterest.length > i + 1 ? eventsOfInterest[i + 1] : null;
-                        let ic = intervalConfig; //curEvt.intervalConfig;
-
-                        // If following item exist in array, create an interval with this one and that one
-                        if (nextEvt != null)
+                        var eventsOfInterest = intervalGroup.values;
+                        // Create intervals for this group from the events
+                        let intervals = [];
+                        for(var i = 0; i < eventsOfInterest.length; i += 2)
                         {
-                            intervals.push({
-                                type: TimelineChart.TYPE.INTERVAL,
-                                intervalType: ic.intervalType,
-                                customClass: ic.customClass,
-                                label: ic.intervalLabelFn(curEvt),
-                                from: new Date(curEvt.EventTime),
-                                to: new Date(nextEvt.EventTime),
-                                data: [curEvt, nextEvt],
-                                onClick: function(){ renderEventDetailsTable(ct.Events, [curEvt, nextEvt]); } 
-                            });
+                            let curEvt = eventsOfInterest[i];
+                            let nextEvt = eventsOfInterest.length > i + 1 ? eventsOfInterest[i + 1] : null;
+                            let ic = intervalConfig;
+
+                            // If following item exist in array, create an interval with this one and that one
+                            if (nextEvt != null)
+                            {
+                                intervals.push({
+                                    type: TimelineChart.TYPE.INTERVAL,
+                                    intervalType: ic.intervalType,
+                                    customClass: ic.customClass,
+                                    label: ic.intervalLabelFn(curEvt),
+                                    from: new Date(curEvt.EventTime),
+                                    to: new Date(nextEvt.EventTime),
+                                    data: [curEvt, nextEvt],
+                                    onClick: function(){ 
+                                        renderCaseTimersTable(copyOfCaseTimerArray, [ ct ]);
+                                        renderEventDetailsTable(ct.Events, [curEvt, nextEvt]);
+                                    } 
+                                });
+                            }
+                            // ...otherwise, create the final interval with this one and the current time as a tentative stop time
+                            else
+                            {
+                                intervals.push({
+                                    type: TimelineChart.TYPE.INTERVAL,
+                                    intervalType: ic.intervalType,
+                                    customClass: ic.customClass,
+                                    label: ic.intervalLabelFn(curEvt),
+                                    from: new Date(curEvt.EventTime),
+                                    to: now,
+                                    data: [curEvt],
+                                    onClick: function(){ 
+                                        renderCaseTimersTable(copyOfCaseTimerArray, [ ct ]);
+                                        renderEventDetailsTable(ct.Events, [curEvt]);
+                                    } 
+                                });
+                            }
                         }
-                        // ...otherwise, create the final interval with this one and the current time as a tentative stop time
-                        else
-                        {
-                            intervals.push({
-                                type: TimelineChart.TYPE.INTERVAL,
-                                intervalType: ic.intervalType,
-                                customClass: ic.customClass,
-                                label: ic.intervalLabelFn(curEvt),
-                                from: new Date(curEvt.EventTime),
-                                to: now,
-                                data: [curEvt],
-                                onClick: function(){ renderEventDetailsTable(ct.Events, [curEvt]); } 
-                            });
-                        }
-                    }
 
-                    return {
-                        label: intervalConfig.groupLabelFn(intervalGroup.values[0]),
-                        data: intervals
-                    };
+                        // new series
+                        return {
+                            label: intervalConfig.groupLabelFn(intervalGroup.values[0]),
+                            groupingKey: ct.Id,  // The case timer Id is a suitable grouping key
+                            data: intervals
+                        };
+                    });
+                console.log(timerIntervalSeriesArray);
+                // end grouping of intervals
 
-                });
-                console.log(groupedIntervals);
+                var allSeriesForTimer = [ eventsForTimerSeries ].concat(timerIntervalSeriesArray);
 
-                return allSeriesForTimer.concat(groupedIntervals);
+                return allSeriesForTimer;
             })
             // flatten the array of timeline data series arrays into a single array of TDS.
             .reduce((accumulator, currentValue) => accumulator.concat(currentValue));
+
+            // We want to provide some sort of visual grouping mechanism so that all series associated with the same case timer can be visually grouped.
+            // Transform the group key to a 0-based index.
+            var newGroupingKey = 0;
+            var lastGroupKey = "----------------";
+            allTimelineSeries.forEach((x) => {
+                if (lastGroupKey != x.groupingKey)
+                {
+                    lastGroupKey = x.groupingKey;
+                    newGroupingKey++;
+                }
+                x.groupingKey = newGroupingKey;
+            });
+
+            return allTimelineSeries;
         }
 
 
     }
 
-    someotherfnhere() {
-        var donothing;
+    updateTimelineData(newCaseData) {
+        this.renderCaseData(newCaseData);
     }
     // extendOptions(ext = {}) {
     //     let defaultOptions = {

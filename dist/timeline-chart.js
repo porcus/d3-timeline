@@ -55,7 +55,7 @@
             var maxDt = d3.max(allElements, this.getPointMaxDt);
             // zoom out just slightly, to allow for a little space on either end of the timeline
             var dateDelta = maxDt.getTime() - minDt.getTime();
-            var zoomOutPct = .02;
+            var zoomOutPct = .02; // 2%
             minDt = new Date(minDt.getTime() - dateDelta * zoomOutPct);
             maxDt = new Date(maxDt.getTime() + dateDelta * zoomOutPct);
 
@@ -72,7 +72,7 @@
             var width = elementWidth - margin.left - margin.right;
             var height = elementHeight - margin.top - margin.bottom;
 
-            // Width of the group label area
+            // Width of the series label area
             var groupWidth = options.hideGroupLabels ? 0 : 400;
             // Height of each section containing a horizontal series.  By default, fit each series into the available vertical space.
             var groupHeight = height / data.length;
@@ -89,29 +89,40 @@
             var xAxis = d3.svg.axis().scale(xTimeScale).orient('top') // set to 'bottom' for a bottom-aligned axis and to 'top' for a top-aligned axis
             .tickSize(height); // set to height for a bottom-aligned axis and to -height for a top-aligned axis
 
+            // In order to upgrade from v3 to v4, this needs to change.
+            // See here:  https://coderwall.com/p/psogia/simplest-way-to-add-zoom-pan-on-d3-js
             var zoom = d3.behavior.zoom().x(xTimeScale).on('zoom', zoomed);
 
-            var _svg = d3.select(element).append('svg').attr('width', width + margin.left + margin.right).attr('height', height + margin.top + margin.bottom);
-            var svg = _svg.append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')').call(zoom);
+            var svg = d3.select(element).append('svg').attr('width', width + margin.left + margin.right).attr('height', height + margin.top + margin.bottom);
 
-            var clipPathRect = svg.append('defs').append('clipPath').attr('id', 'chart-content').append('rect').attr('x', groupWidth).attr('y', 0).attr('height', height).attr('width', width - groupWidth);
+            // All elements affected by the zooming behavior are created in the zoom() fn.
+            var svg_g = svg.append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')').call(zoom);
+
+            var clipPathRect = svg_g.append('defs').append('clipPath').attr('id', 'chart-content').append('rect').attr('x', groupWidth).attr('y', 0).attr('height', height).attr('width', width - groupWidth);
 
             // Invisible rect covering chart bounds, ensuring that all interactions intended for the chart will be raised as events on SVG elements
-            var interactionRect = svg.append('rect').attr('class', 'chart-bounds').attr('x', groupWidth).attr('y', 0).attr('height', height).attr('width', width - groupWidth);
-
-            // Axis with labels and ticks
-            svg.append('g').attr('class', 'x axis').attr('transform', 'translate(0,' + height + ')').call(xAxis);
+            var interactionRect = svg_g.append('rect').attr('class', 'chart-bounds').attr('x', groupWidth).attr('y', 0).attr('height', height).attr('width', width - groupWidth);
 
             if (options.enableLiveTimer) {
-                self.now = svg.append('line').attr('clip-path', 'url(#chart-content)').attr('class', 'vertical-marker now').attr("y1", 0).attr("y2", height);
+                self.now = svg_g.append('line').attr('clip-path', 'url(#chart-content)').attr('class', 'vertical-marker now').attr("y1", 0).attr("y2", height);
             }
 
-            // horizontal lines between groups
-            var groupSection = svg.selectAll('.group-section').data(data).enter().append('line').attr('class', 'group-section').attr('x1', 0).attr('x2', width).attr('y1', function (d, i) {
+            var c20 = d3.scale.category20c();
+            var seriesBackground = svg_g.selectAll('.series-background').data(data).enter().append('rect').attr('class', 'series-background').attr('x', 0).attr('y', function (d, i) {
+                return groupHeight * i;
+            }).attr('width', width).attr('height', groupHeight).style('fill', function (d, i) {
+                return c20(d.groupingKey || i);
+            });
+
+            // horizontal lines between groups.  (This used to use the 'group-section' class, but is now using the 'series' terminology.)
+            var seriesDividers = svg_g.selectAll('.series-divider').data(data).enter().append('line').attr('class', 'series-divider').attr('x1', 0).attr('x2', width).attr('y1', function (d, i) {
                 return groupHeight * (i + 1);
             }).attr('y2', function (d, i) {
                 return groupHeight * (i + 1);
             });
+
+            // Axis with labels and ticks
+            svg_g.append('g').attr('class', 'x axis').attr('transform', 'translate(0,' + height + ')').call(xAxis);
 
             // Monitor for change in size of containing element
             setInterval(handleWidthChange, 1000);
@@ -125,8 +136,9 @@
                     //console.log("new width: ", newWidth);
                     width = newWidth;
 
-                    _svg.attr("width", width);
-                    groupSection.attr('x2', width);
+                    svg.attr("width", width);
+                    seriesDividers.attr('x2', width);
+                    seriesBackground.attr('width', width);
                     clipPathRect.attr("width", width);
                     interactionRect.attr("width", width - groupWidth);
                     xTimeScale.range([xTimeScale.range()[0], width]);
@@ -134,9 +146,9 @@
                 }
             }
 
-            // group label text (for each series)
+            // heading / label text (for each series)
             if (!options.hideGroupLabels) {
-                var groupLabels = svg.selectAll('.group-label').data(data).enter().append('text').attr('class', 'group-label').attr('x', '0.5em') //0)
+                var groupLabels = svg_g.selectAll('.series-label').data(data).enter().append('text').attr('class', 'series-label').attr('x', '0.5em') //0)
                 .attr('y', function (d, i) {
                     return groupHeight * i + groupHeight / 2; //+ 5.5;
                 }).attr('dx', '0.5em').attr('dy', '0') //'0.5em')
@@ -144,10 +156,10 @@
                     return d.label;
                 }).call(wrap, groupWidth);
 
-                var lineSection = svg.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', height).attr('stroke', 'orange');
+                var lineSection = svg_g.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', height).attr('stroke', 'orange');
             }
 
-            var groupIntervalItems = svg.selectAll('.group-interval-item').data(data).enter().append('g').attr('clip-path', 'url(#chart-content)').attr('class', 'item').attr('transform', function (d, i) {
+            var groupIntervalItems = svg_g.selectAll('.series-interval-item').data(data).enter().append('g').attr('clip-path', 'url(#chart-content)').attr('class', 'item').attr('transform', function (d, i) {
                 return 'translate(0, ' + groupHeight * i + ')';
             }).selectAll('.dot').data(function (d) {
                 return d.data.filter(function (_) {
@@ -173,7 +185,7 @@
                 return xTimeScale(d.from);
             });
 
-            var groupDotItems = svg.selectAll('.group-dot-item').data(data).enter().append('g').attr('clip-path', 'url(#chart-content)').attr('class', 'item').attr('transform', function (d, i) {
+            var groupDotItems = svg_g.selectAll('.series-dot-item').data(data).enter().append('g').attr('clip-path', 'url(#chart-content)').attr('class', 'item').attr('transform', function (d, i) {
                 return 'translate(0, ' + groupHeight * i + ')';
             }).selectAll('.dot').data(function (d) {
                 return d.data.filter(function (_) {
@@ -190,7 +202,7 @@
             if (options.tip) {
                 if (d3.tip) {
                     var tip = d3.tip().attr('class', 'd3-tip').html(options.tip);
-                    svg.call(tip);
+                    svg_g.call(tip);
                     dots.on('mouseover', tip.show).on('mouseout', tip.hide);
                     intervals.on('mouseover', tip.show).on('mouseout', tip.hide);
                 } else {
@@ -257,18 +269,18 @@
                     updateNowMarker();
                 }
 
-                svg.select('.x.axis').call(xAxis);
+                svg_g.select('.x.axis').call(xAxis);
 
-                svg.selectAll('circle.dot').attr('cx', function (d) {
+                svg_g.selectAll('circle.dot').attr('cx', function (d) {
                     return xTimeScale(d.at);
                 });
-                svg.selectAll('rect.interval').attr('x', function (d) {
+                svg_g.selectAll('rect.interval').attr('x', function (d) {
                     return xTimeScale(d.from);
                 }).attr('width', function (d) {
                     return Math.max(options.intervalMinWidth, xTimeScale(d.to) - xTimeScale(d.from));
                 });
 
-                svg.selectAll('.interval-text').attr('x', function (d) {
+                svg_g.selectAll('.interval-text').attr('x', function (d) {
                     var positionData = getTextPositionData.call(this, d);
                     if (positionData.upToPosition - groupWidth - 10 < positionData.textWidth) {
                         return positionData.upToPosition;
