@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" type="text/css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/10.0.0/css/bootstrap-slider.min.css" rel="stylesheet" type="text/css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-slider/10.0.0/bootstrap-slider.min.js"></script>
+    <style> label { width: 300px; } </style>
+</head>
+<body>
+
+    <div>
+        <div class='container'>
+            <br>
+            <div class='row'>
+                <div class='col-sm-12'>
+                    To use the auto-update-feature, select (a) the amount of time to wait in between each timer update and (b) how long to continue automatically updating timers.  
+                    A timer update will be performed each time (a) reaches 0.  Manual updates can be performed any time an update is not already executing.
+                </div>
+            </div>
+            <br />
+            <div class='row' id='auto-update-args'>
+                <div class='col-sm-10 col-sm-offset-1'>
+                    <label> (a) Wait time between updates: </label>
+                    <input id='auto-update-sleep-duration-seconds-slider' type='text' class='form-control' data-slider-min='5' data-slider-max='600' data-slider-step='5' data-slider-value='120' data-slider-enabled='true' />
+                    <br><br>
+                    <label> (b) Auto-update time period: </label>
+                    <input id='auto-update-total-duration-minutes-slider' type='text' class='form-control' data-slider-min='5' data-slider-max='600' data-slider-step='5' data-slider-value='120' data-slider-enabled='true' />
+                    <br><br>
+                    <button type='button' class='form-control btn btn-success' value='Start' id='auto-update-start'>Start</button>
+                </div>
+            </div>
+            <div class='row' id='auto-update-status' style='display:none'>
+                <div class='col-sm-10 col-sm-offset-1'>
+                    <label> (a) Time until next update: </label>
+                    <input id='auto-update-remaining-sleep-duration-seconds-slider' type='text' class='form-control' />
+                    <br><br>
+                    <label> (b) Remaining auto-update time: </label>
+                    <input id='auto-update-remaining-total-duration-seconds-slider' type='text' class='form-control' />
+                    <br><br>
+                    <input type='button' class='form-control btn btn-danger' value='Stop' id='auto-update-stop' />
+                    <input type='button' class='form-control btn btn-success' value='Resume' id='auto-update-resume' />
+                    <br><br>
+                    <input type='button' class='form-control btn btn-warning' value='Cancel / Reset' id='auto-update-reset' />
+                </div>
+            </div>
+            <br />
+            <div class='row'>
+                <div class='col-sm-12'>
+                    <input id='update-timers' type='button' class='btn btn-primary' style='font-size: 2em; padding: 1em; width: 100%;' value='Update All Timers' />
+                    <div style='font-size: 1.5em; margin: 1em 0; text-align: center;'>
+                        <div id='pokeresult'></div>
+                        <br>
+                        <div id='timestamp'></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+        
+    <script>
+        function CountDown(totalMs, tickMs, tickCallback, zeroCallback){
+            this.initialMs = totalMs;
+            this.msRemaining = totalMs;
+            this.intervalFnId = 0;
+            this.startTime = 0;
+            this.tickFn = tickCallback;
+            this.zeroFn = zeroCallback;
+            this.msInterval = tickMs;
+
+            this.start = function() {
+                this.startTime = new Date().getTime();
+                this.intervalFnId = setInterval(tick.bind(this), this.msInterval);
+            }
+
+            this.stop = function() {
+                this.startTime = 0;            
+                clearInterval(this.intervalFnId);
+            }
+
+            this.reset = function() {
+                this.msRemaining = this.initialMs;
+            }
+
+            this.getRemainingSeconds = function() { return (this.msRemaining/1000); }
+
+            function tick() {
+                var now = new Date().getTime();
+                var elapsed = now - this.startTime;
+                this.startTime = now;
+                this.msRemaining -= elapsed;
+                if (this.msRemaining < 0)
+                    this.msRemaining = 0;
+                if (typeof this.tickFn == 'function') this.tickFn(this);
+                if (this.msRemaining === 0) {
+                    this.stop();
+                    if (typeof this.zeroFn == 'function') this.zeroFn.bind(this)();
+                }
+            }
+        }
+
+        var sleepTimer = null;
+        var remainingSleepDurationSlider = null;
+        var totalTimer = null;
+        var remainingTotalDurationSlider = null;
+
+        $('#auto-update-start').click(start);
+        function start() {
+
+            var totalMs = totalDurationSlider.getValue() * 60000;
+            var sleepMs = sleepDurationSlider.getValue() * 1000;
+
+            remainingTotalDurationSlider && remainingTotalDurationSlider.destroy();
+            remainingSleepDurationSlider && remainingSleepDurationSlider.destroy();
+
+            remainingTotalDurationSlider = new Slider("#auto-update-remaining-total-duration-seconds-slider", {
+                formatter: formatSeconds, tooltip: 'always', min: 0, max: totalMs/1000, enabled: false, tooltip_position: "bottom"
+            });
+            remainingSleepDurationSlider = new Slider("#auto-update-remaining-sleep-duration-seconds-slider", {
+                formatter: formatSeconds, tooltip: 'always', min: 0, max: sleepMs/1000, enabled: false
+            });
+
+            totalTimer = new CountDown(totalMs, 200, function(){ 
+                remainingTotalDurationSlider.setValue(this.getRemainingSeconds()); 
+            }, function() {
+                $('#auto-update-stop').hide();
+                $('#auto-update-resume').hide();
+            });
+            sleepTimer = new CountDown(sleepMs, 200, function(){ 
+                remainingSleepDurationSlider.setValue(this.getRemainingSeconds()) 
+            }, function(){ 
+                poke(
+                    function() {
+                        if (totalTimer.getRemainingSeconds() > 0) {
+                            this.reset();
+                            this.start();
+                            remainingSleepDurationSlider.setValue(this.getRemainingSeconds());
+                        }
+                }.bind(this));
+            });
+
+            totalTimer.start();
+            sleepTimer.start();
+
+            $('#auto-update-args').hide();
+            $('#auto-update-status').show();
+            $('#auto-update-stop').show();
+            $('#auto-update-resume').hide();
+        }
+
+        $('#auto-update-stop').click(stop);
+        function stop() {
+            totalTimer.stop();
+            sleepTimer.stop();
+            $('#auto-update-stop').hide();
+            $('#auto-update-resume').show();
+        }
+
+        $('#auto-update-reset').click(reset);
+        function reset() {
+            stop();
+            $('#auto-update-args').show();
+            $('#auto-update-status').hide();
+        }
+
+        $('#auto-update-resume').click(resume);
+        function resume() {
+            totalTimer.start();
+            sleepTimer.start();
+            $('#auto-update-resume').hide();
+            $('#auto-update-stop').show();
+        }
+
+        var apiBaseUrl = location.hostname == 'localhost' ? 'http://localhost/api' : 'API_BASE_URL';
+        var timersEndpointUrl = apiBaseUrl+'/timers';
+        $('#update-timers').click(poke);
+        function poke(completionCallback){
+            if (poke.poking) return;
+            poke.poking = true;
+            $('button').prop('disabled', true);
+            $('#pokeresult').text('Please wait...');
+            $('#timestamp').html('');
+            var startTime = new Date().getTime();
+            $.post(timersEndpointUrl)
+                .done(function(){ 
+                    $('#pokeresult').html('Timers updated successfully.'); 
+                })
+                .fail(function(jqXHR){ 
+                    $('#pokeresult').html('Timers NOT updated successfully. '+jqXHR.statusText+' ('+jqXHR.status+')'); 
+                })
+                .always(function(){
+                    var requestTime = new Date().getTime() - startTime;
+                    $('#timestamp').html('Duration: '+(requestTime/1000)+' seconds<br><br>'+new Date()); 
+                    $('button').prop('disabled', false);
+                    poke.poking = false;
+                    if (typeof completionCallback == 'function') completionCallback();
+                });
+        }
+
+        var formatMinutes = function(value) { return Math.trunc(value/60) + ' hours ' + value%60 + ' minutes'; };
+        var formatSeconds = function(value) { 
+            var h = Math.trunc(value/3600); 
+            var m = Math.trunc((value-h*3600)/60); 
+            var s = value%60;
+            return (h > 0 ? h+' hours ' : '') + (m > 0 ? m+' minutes ' : '') + s + ' seconds'; };
+
+        var sleepDurationSlider = new Slider('#auto-update-sleep-duration-seconds-slider', { formatter: formatSeconds });
+        var totalDurationSlider = new Slider('#auto-update-total-duration-minutes-slider', { formatter: formatMinutes, tooltip_position: 'bottom' });
+
+    </script>
+</body>
+</html>

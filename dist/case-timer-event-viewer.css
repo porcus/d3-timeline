@@ -1,21 +1,53 @@
+.heading {
+  font-size: 24pt;
+  font-weight: bold; }
+
 .chart-container {
   border: solid 1px #444; }
 
-.heading {
-  font-size: 24pt;
-  font-weight: bold;
-  margin-bottom: .5em; }
+.property-card-flex-layout {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -ms-flex-wrap: wrap;
+      flex-wrap: wrap; }
 
-.timeline-chart .group-section {
+.scrollable-container {
+  border: solid 1px #444;
+  overflow: scroll;
+  min-height: 50px; }
+  .scrollable-container table {
+    margin-bottom: 0; }
+
+.highlighted {
+  background: #d5eafd; }
+
+.property-label-and-value {
+  margin: 4px;
+  border: 1px solid black;
+  display: block;
+  padding: 4px; }
+  .property-label-and-value .property-label {
+    font-weight: bold;
+    margin: 3px; }
+  .property-label-and-value .property-value {
+    margin: 3px; }
+
+.timeline-chart .series-divider {
   stroke: #ddd; }
 
 .timeline-chart .interval {
   fill: white;
-  stroke: gray; }
+  stroke: gray;
+  fill-opacity: 0.7; }
 
 .timeline-chart .interval-text {
   fill: #333;
   stroke: #333; }
+
+.timeline-chart .interval-white.interval {
+  fill: white;
+  stroke: #444; }
 
 .timeline-chart .interval-green.interval {
   fill: green;
@@ -33,10 +65,6 @@
   fill: red;
   stroke: black; }
 
-.timeline-chart .interval-white.interval {
-  fill: white;
-  stroke: black; }
-
 .timeline-chart circle.dot.point-white {
   fill: white;
   stroke: black; }
@@ -44,14 +72,7 @@
 .d3-tip {
   font-weight: normal;
   border-radius: 8px;
-  line-height: 1.2; }
-
-.details-container {
-  border: solid 1px #444;
-  overflow: scroll; }
-
-.highlighted {
-  background: #d5eafd; }
+  line-height: 1.4; }
 
 @media only screen and (max-width: 1600px) {
   .responsive-table-1600 {

@@ -148,6 +148,7 @@ class TimelineChart {
             .attr('width', width)
             .attr('height', groupHeight)
             .style('fill', (d, i) => {
+                //return c20(Math.floor((4*(d.groupingKey || i - 3)/3)));
                 return c20(d.groupingKey || i);
             });
 

@@ -111,6 +111,7 @@
             var seriesBackground = svg_g.selectAll('.series-background').data(data).enter().append('rect').attr('class', 'series-background').attr('x', 0).attr('y', function (d, i) {
                 return groupHeight * i;
             }).attr('width', width).attr('height', groupHeight).style('fill', function (d, i) {
+                //return c20(Math.floor((4*(d.groupingKey || i - 3)/3)));
                 return c20(d.groupingKey || i);
             });
 

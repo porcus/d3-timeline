@@ -1,31 +1,82 @@
 
-.chart-container {
-    border: solid 1px #444; 
-    // overflow-y: overlay;
+#case-timer-event-browser-container {
 }
 
 .heading {
     font-size: 24pt;
     font-weight: bold;
-    margin-bottom: .5em;
+    // margin-bottom: .5em;
 }
+
+.chart-container {
+    border: solid 1px #444;
+}
+
+.property-card-flex-layout {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+// Case Timer Event Styles
+.scrollable-container {
+    border: solid 1px #444;
+    overflow: scroll;
+    min-height: 50px;
+
+    table {
+        margin-bottom: 0;
+    }
+}
+
+// table row highlight
+.highlighted {
+    background: #d5eafd;
+}
+
+.property-label-and-value
+{
+    margin: 4px;
+    border: 1px solid black;
+    display: block;
+    padding: 4px;
+
+    .property-label {
+        font-weight: bold;
+        margin: 3px;
+    }
+    .property-value {
+        margin: 3px;
+    }    
+}
+
+
+//***************************************************************************
 
 // custom timeline styles
 .timeline-chart {
 
-    // lines separating each group/"track"/series of data
-    .group-section {
+    // lines separating each series/track of data
+    .series-divider {
         stroke: #ddd;
     }
 
-    // default interval colors
+    // default interval and text colors
     .interval {
         fill: white;
         stroke: gray;
+        fill-opacity: 0.7;
     }
     .interval-text {
         fill: #333;
         stroke: #333;
+    }
+
+    // white
+    .interval-white {
+        &.interval {
+            fill: white;
+            stroke: #444;
+        }
     }
 
     // green
@@ -34,10 +85,6 @@
             fill: green;
             stroke: black;
         }
-        // &.interval-text {
-        //     fill: black;
-        //     stroke: black;
-        // }
     }
 
     // yellow
@@ -46,10 +93,6 @@
             fill: yellow;
             stroke: black;
         }
-        // &.interval-text {
-        //     fill: black;
-        //     stroke: black;
-        // }
     }
 
     // orange
@@ -58,10 +101,6 @@
             fill: orange;
             stroke: black;
         }
-        // &.interval-text {
-        //     fill: black;
-        //     stroke: black;
-        // }
     }
 
     // red
@@ -70,22 +109,6 @@
             fill: red;
             stroke: black;
         }
-        // &.interval-text {
-        //     fill: black;
-        //     stroke: black;
-        // }
-    }
-
-    // white
-    .interval-white {
-        &.interval {
-            fill: white;
-            stroke: black;
-        }
-        // &.interval-text {
-        //     fill: black;
-        //     stroke: black;
-        // }
     }
 
     // default point colors
@@ -101,22 +124,11 @@
 .d3-tip {
     font-weight: normal;
     border-radius: 8px;
-    line-height: 1.2;
+    line-height: 1.4;
     // background: white;
     // color: black;
 }
 
-
-// Case Timer Event Styles
-.details-container {
-    border: solid 1px #444;
-    overflow: scroll;
-}
-
-// table row highlight
-.highlighted {
-    background: #d5eafd;
-}
 
 
 @mixin responsive-table {
