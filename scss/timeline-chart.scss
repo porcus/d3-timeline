@@ -1,4 +1,6 @@
 .timeline-chart {
+    font-weight: lighter;
+    
     .axis path {
         fill: none;
         stroke: none;
@@ -9,32 +11,39 @@
     rect, rect.chart-bounds {
         fill: transparent;
     }
-    rect.chart-bounds, rect.interval {
-        &:hover {
-            stroke-width: 3;
-            cursor: grab;
-        }
-        &:active {
-            cursor: grabbing;
-        }
+    rect.chart-bounds {
+        cursor: grab;
     }
-    .dot {
-        &:hover {
-            stroke-width: 3;
-        }
+    rect.interval {
         cursor: pointer;
-    }
-
-    .interval-text {
-        pointer-events: none;
-        fill: white;
-        stroke: white;
-    }
-    .interval {
+        &:hover {
+            stroke-width: 3;
+        }
+        // &:active {
+        //     cursor: grabbing;
+        // }
+        // &.chart-node-highlight {
+        //     fill: #0f0 !important;
+        // }
         ry: 5;
         rx: 5;
         fill: black;
         stroke: #2b2b2b;
+    }
+    circle.dot {
+        cursor: pointer;
+        &:hover {
+            stroke-width: 3;
+        }
+        // &.chart-node-highlight {
+        //     fill: #0f0 !important;
+        // }
+    }
+
+    text.series-label, text.interval-text {
+        fill: #333;
+        stroke: #333;
+        pointer-events: none;
     }
 
 }

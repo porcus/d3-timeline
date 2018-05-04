@@ -1,16 +1,50 @@
+body {
+    font-family: 'Roboto', sans-serif;
+    color: #333;
+}
+
+.font-scale-pct-10 { font-size: 10%; }
+.font-scale-pct-20 { font-size: 20%; }
+.font-scale-pct-30 { font-size: 30%; }
+.font-scale-pct-40 { font-size: 40%; }
+.font-scale-pct-50 { font-size: 50%; }
+.font-scale-pct-60 { font-size: 60%; }
+.font-scale-pct-70 { font-size: 70%; }
+.font-scale-pct-80 { font-size: 80%; }
+.font-scale-pct-90 { font-size: 90%; }
+.font-scale-pct-100 { font-size: 100%; }
+.font-scale-pct-110 { font-size: 110%; }
+.font-scale-pct-120 { font-size: 120%; }
+.font-scale-pct-130 { font-size: 130%; }
+.font-scale-pct-140 { font-size: 140%; }
+.font-scale-pct-150 { font-size: 150%; }
+.font-scale-pct-160 { font-size: 160%; }
+.font-scale-pct-170 { font-size: 170%; }
+.font-scale-pct-180 { font-size: 180%; }
+.font-scale-pct-190 { font-size: 190%; }
+.font-scale-pct-200 { font-size: 200%; }
 
 #case-timer-event-browser-container {
 }
 
-.heading {
-    font-size: 24pt;
-    font-weight: bold;
-    // margin-bottom: .5em;
+.bottom-border {
+    border-bottom: solid #333 .05em;
 }
 
-.chart-container {
-    border: solid 1px #444;
+.h2 {
+    //font-weight: bold;
+    //border-bottom: solid #333 .05em;
 }
+
+.h4 {
+    //font-size: 16pt;
+    //font-weight: bold;
+}
+
+.indent {
+    margin-left: 1.5em;
+}
+
 
 .property-card-flex-layout {
     display: flex;
@@ -22,30 +56,42 @@
     border: solid 1px #444;
     overflow: scroll;
     min-height: 50px;
+    max-height: 500px;
 
     table {
         margin-bottom: 0;
+        tbody {
+            tr {
+                border-top: 1px solid #ddd;
+            }
+            td {
+                padding: .3em;
+                line-height: 1.1em;
+            }
+        }
     }
 }
 
 // table row highlight
-.highlighted {
-    background: #d5eafd;
+.row-highlight {
+    //background: #d5eafd;
+    background: #0f0;
 }
 
-.property-label-and-value
-{
-    margin: 4px;
+.property-label-and-value {
+    margin: 2px;
     border: 1px solid black;
     display: block;
-    padding: 4px;
+    padding: 1px;
 
     .property-label {
         font-weight: bold;
         margin: 3px;
+        display: inline;
     }
     .property-value {
         margin: 3px;
+        display: inline;
     }    
 }
 
@@ -56,15 +102,32 @@
 .timeline-chart {
 
     // lines separating each series/track of data
-    .series-divider {
-        stroke: #ddd;
-    }
+    // .series-divider {
+    //     stroke: #ddd;
+    // }
 
-    // default interval and text colors
-    .interval {
+    // default point colors
+    circle.dot {
         fill: white;
         stroke: gray;
         fill-opacity: 0.7;
+        // &.point-white {
+        //     fill: white;
+        //     stroke: black;
+        // }
+        &.chart-node-highlight {
+            fill: #0f0 !important;
+        }
+    }
+
+    // default interval and text colors
+    rect.interval {
+        fill: white;
+        stroke: gray;
+        fill-opacity: 0.7;
+        &.chart-node-highlight {
+            fill: #0f0 !important;
+        }
     }
     .interval-text {
         fill: #333;
@@ -109,12 +172,6 @@
             fill: red;
             stroke: black;
         }
-    }
-
-    // default point colors
-    circle.dot.point-white {
-        fill: white;
-        stroke: black;
     }
 
 }

@@ -1,68 +1,97 @@
 /*
 Provided data should match the following grammar/rules:
 
-<timeline_data> : 
-[
-    <series_data>,
-    <series_data>,
-    ...
-]
-
-<series_data> :
-[
-    label: <label-expression>,
-    data: 
+    <timeline_data> : 
     [
-        <series_item>
+        <series_data>,
+        <series_data>,
+        ...
     ]
-]
 
-<series_item> : <series_interval> OR <series_point>
+    <series_data> :
+    [
+        label: <label-expression>,
+        data: 
+        [
+            <series_item>
+        ]
+    ]
 
-<series_interval> : 
-{
-    type: TimelineChart.TYPE.INTERVAL,
-    label: <label-expression>,
-    from: <Date>,
-    to: <Date>,
-    customClass: <css-class>,
-    onClick: <function>
-}
+    <series_item> : <series_interval> OR <series_point>
 
-<series_point> :
-{
-    type: TimelineChart.TYPE.INTERVAL,
-    label: <label>,
-    at: <Date>,
-    customClass: <css-class>,
-    onClick: <function>
-}
+    <series_interval> : 
+    {
+        type: TimelineChart.TYPE.INTERVAL,
+        label: <label-expression>,
+        from: <Date>,
+        to: <Date>,
+        customClass: <css-class>,
+        onClick: <function>,
+        ids: [ (unique ID strings) ]
+    }
 
-<label-expression> : <string>
+    <series_point> :
+    {
+        type: TimelineChart.TYPE.INTERVAL,
+        label: <label>,
+        at: <Date>,
+        customClass: <css-class>,
+        onClick: <function>,
+        ids: [ (unique ID strings) ]
+    }
 
-<css-class> : <string>
+    <label-expression> : <string>
+
+    <css-class> : <string>
 
 */
 class TimelineChart {
-    constructor(element, data, opts) {
+    constructor(element, timelineData, opts) {
         let self = this;
 
-        element.classList.add('timeline-chart');
+        element.classList.add('timeline-chart-component');
 
         let options = this.extendOptions(opts);
 
-        let allElements = data.reduce((agg, e) => agg.concat(e.data), []);
+        timelineData.forEach(series => {
+            // Normalize data with respect to at/from/to temporal properties
+            series.data.forEach(item => {
+                item.at = self.getItemAvgDate(item);
+                item.from = self.getItemMinDate(item);
+                item.to = self.getItemMaxDate(item);
+            });
+            // Sort items within the series
+            var sortedItems = series.data.sort((a,b) => a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+            // On each item, set references to previous and next items
+            sortedItems.forEach((o,i) => {
+                o.prevItem = i == 0 ? null : sortedItems[i-1];
+                o.nextItem = i == sortedItems.length-1 ? null : sortedItems[i+1];
+            });
+        })
 
-        let minDt = d3.min(allElements, this.getPointMinDt);
-        let maxDt = d3.max(allElements, this.getPointMaxDt);
+        // flatten grouped data elements into a single array
+        let allElements = timelineData.reduce((agg, e) => agg.concat(e.data), []);
+
+        let minDt = d3.min(allElements, self.getItemMinDate);
+        let maxDt = d3.max(allElements, self.getItemMaxDate);
         // zoom out just slightly, to allow for a little space on either end of the timeline
         let dateDelta = maxDt.getTime() - minDt.getTime();
         let zoomOutPct = .02;  // 2%
         minDt = new Date(minDt.getTime() - (dateDelta * zoomOutPct));
         maxDt = new Date(maxDt.getTime() + (dateDelta * zoomOutPct));
 
-        let elementWidth = options.width || element.clientWidth || 600;
-        let elementHeight = options.height || element.clientHeight || 200;
+        // let resetBtn = d3.select(element)
+        //     .append('button')
+        //     .html('Reset View')
+        //     .on('click', d => self.resetTransform());
+
+        let timelineContainer = d3.select(element)
+            .append('div')
+            .classed('timeline-chart', true);
+        let timelineContainerElement = timelineContainer.node();
+
+        let elementWidth = options.width || timelineContainerElement.clientWidth || 600;
+        let elementHeight = options.height || timelineContainerElement.clientHeight || 200;
 
         let margin = {
             top: 20,
@@ -71,50 +100,69 @@ class TimelineChart {
             left: 0
         };
 
+        let dataIdClassPrefix = "_id_";
+
         let width = elementWidth - margin.left - margin.right;
         let height = elementHeight - margin.top - margin.bottom;
 
         // Width of the series label area
-        let groupWidth = options.hideGroupLabels ? 0 : 400;
-        // Height of each section containing a horizontal series.  By default, fit each series into the available vertical space.
-        let groupHeight = height / data.length;
+        let groupWidth = options.groupWidth || 400;  // options.hideGroupLabels ? 0 : 400;
 
-        // If the groupHeight option is set, then use its value for the height of each series, and set the total height accordingly.
+        // Height of each section containing a horizontal series.  By default, fit each series into the available vertical space.
+        let groupHeight = height / timelineData.length;
+        // Otherwise, if the groupHeight option is set, then use its value for the height of each series, and set the total height accordingly.
         if (!!options.groupHeight)
         {
             groupHeight = options.groupHeight;
-            height = groupHeight * data.length;
+            height = groupHeight * timelineData.length;
         }
 
-        let xTimeScale = d3.time.scale()
+        let xTimeScaleOriginal = d3.scaleTime()
             .domain([minDt, maxDt])
             .range([groupWidth, width]);
+        let xTimeScaleForContent = xTimeScaleOriginal;
 
         // X axis ticks
-        let xAxis = d3.svg.axis()
-            .scale(xTimeScale)
-            .orient('top') // set to 'bottom' for a bottom-aligned axis and to 'top' for a top-aligned axis
+        let xAxis = d3.axisTop(xTimeScaleForContent)
+            //.orient('top') // set to 'bottom' for a bottom-aligned axis and to 'top' for a top-aligned axis
             .tickSize(height); // set to height for a bottom-aligned axis and to -height for a top-aligned axis
+        let xAxisScaled = xAxis;
 
         // In order to upgrade from v3 to v4, this needs to change.
         // See here:  https://coderwall.com/p/psogia/simplest-way-to-add-zoom-pan-on-d3-js
-        let zoom = d3.behavior.zoom()
-            .x(xTimeScale)
-            .on('zoom', zoomed);
+        let zoom = d3.zoom()
+            .on('zoom', zoomed)
+            .scaleExtent([1, Infinity])
+            .extent([[groupWidth,0], [width, height]])
+            .translateExtent([[groupWidth,0], [width, height]])
 
-        let svg = d3.select(element).append('svg')
+        let svg = self.svgElement = timelineContainer
+            .append('svg')
             .attr('width', width + margin.left + margin.right)
             .attr('height', height + margin.top + margin.bottom);
 
         // All elements affected by the zooming behavior are created in the zoom() fn.
         let svg_g = svg
             .append('g')
-            .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
-            .call(zoom);
+            .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+        svg_g.call(zoom); //.transform);
 
+        // let selectionFilter = svg_g.append("defs")
+        //     .append("filter")
+        //     .attr("id",'blurred')
+        //     .attr({"x":"-50%", "y":"-50%", "width":"200%", "height":"200%"})
+        //     .append("feGaussianBlur").attr("stdDeviation", 12);
+
+        function uuidv4() {
+            return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+                (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+            )
+        }
+          
+        let chartContentClipPathId = "chart-content-clip-path-"+uuidv4();
         let clipPathRect = svg_g.append('defs')
             .append('clipPath')
-            .attr('id', 'chart-content')
+            .attr('id', chartContentClipPathId)
             .append('rect')
             .attr('x', groupWidth)
             .attr('y', 0)
@@ -127,19 +175,23 @@ class TimelineChart {
             .attr('x', groupWidth)
             .attr('y', 0)
             .attr('height', height)
-            .attr('width', width - groupWidth)
+            .attr('width', width - groupWidth);
+
+        //interactionRect.call(zoom);
 
         if (options.enableLiveTimer) {
             self.now = svg_g.append('line')
-                .attr('clip-path', 'url(#chart-content)')
+                .attr('clip-path', `url(#${chartContentClipPathId})`)
                 .attr('class', 'vertical-marker now')
                 .attr("y1", 0)
                 .attr("y2", height);
         }
 
-        var c20 = d3.scale.category20c();
+        var c20 = d3.schemeCategory20;
+        var colorScale10 = [];
+        d3.schemeCategory20.forEach((o,i) => { if(i%2==1) colorScale10.push(o); })
         let seriesBackground = svg_g.selectAll('.series-background')
-            .data(data)
+            .data(timelineData)
             .enter()
             .append('rect')
             .attr('class', 'series-background')
@@ -148,13 +200,12 @@ class TimelineChart {
             .attr('width', width)
             .attr('height', groupHeight)
             .style('fill', (d, i) => {
-                //return c20(Math.floor((4*(d.groupingKey || i - 3)/3)));
-                return c20(d.groupingKey || i);
+                return d3.schemeCategory20[((d.groupingKey || i)%10)*2+1];
             });
 
         // horizontal lines between groups.  (This used to use the 'group-section' class, but is now using the 'series' terminology.)
         let seriesDividers = svg_g.selectAll('.series-divider')
-            .data(data)
+            .data(timelineData)
             .enter()
             .append('line')
             .attr('class', 'series-divider')
@@ -167,8 +218,23 @@ class TimelineChart {
                 return groupHeight * (i + 1);
             });
 
+        let translucentOverlay = svg_g.append('rect')
+            .attr('x', groupWidth)
+            .attr('y', 0)
+            .attr('width', width - groupWidth)
+            .attr('height', height)
+            .style('fill', "#fff")
+            .style('fill-opacity', '.25');
+
+        let boundingRect = svg_g.append('rect')
+            .attr('x', 0)
+            .attr('y', 0)
+            .attr('width', width)
+            .attr('height', height)
+            .style('stroke', "#000");
+
         // Axis with labels and ticks
-        svg_g.append('g')
+        let gX = svg_g.append('g')
             .attr('class', 'x axis')
             .attr('transform', 'translate(0,' + height + ')')
             .call(xAxis);
@@ -177,29 +243,35 @@ class TimelineChart {
         setInterval(handleWidthChange, 1000);
 
         function handleWidthChange() {
-            var newWidth = element.clientWidth - margin.left - margin.right - 2;
+            var newWidth = timelineContainerElement.clientWidth - margin.left - margin.right - 2;
 
             if (newWidth != width)
             {
-                //console.log('xTimeScale', xTimeScale);
-                //console.log("old width: ", width);
-                //console.log("new width: ", newWidth);
                 width = newWidth;
-
                 svg.attr("width", width) ;
                 seriesDividers.attr('x2', width);
                 seriesBackground.attr('width', width);
-                clipPathRect.attr("width", width);
-                interactionRect.attr("width", width - groupWidth);
-                xTimeScale.range([xTimeScale.range()[0], width]);
+                boundingRect.attr('width', width);
+
+                var interactionWidth = width - groupWidth;
+                translucentOverlay.attr('width', interactionWidth);
+                clipPathRect.attr("width", interactionWidth);
+                interactionRect.attr("width", interactionWidth);
+                xTimeScaleOriginal.range([groupWidth, width]);
+                xTimeScaleForContent.range([groupWidth, width]);
+                xAxisScaled = xAxis.scale(xTimeScaleForContent);
+                zoom
+                    .extent([[groupWidth,0], [width, height]])
+                    .translateExtent([[groupWidth,0], [width, height]]);
                 zoomed();
+                console.log("Width changed.  New total width: ", width, "New interactive width: ", interactionWidth);
             }
         }
 
         // heading / label text (for each series)
-        if (!options.hideGroupLabels) {
+        if (options.groupWidth > 0) {
             let groupLabels = svg_g.selectAll('.series-label')
-                .data(data)
+                .data(timelineData)
                 .enter()
                 .append('text')
                 .attr('class', 'series-label')
@@ -208,7 +280,7 @@ class TimelineChart {
                     return (groupHeight * i) + (groupHeight / 2) ; //+ 5.5;
                 })
                 .attr('dx', '0.5em')
-                .attr('dy', '0')  //'0.5em')
+                .attr('dy', '.4em')  //'-.1em')  //'0.5em')
                 .text(d => d.label)
                 .call(wrap, groupWidth);
 
@@ -216,10 +288,10 @@ class TimelineChart {
         }
 
         let groupIntervalItems = svg_g.selectAll('.series-interval-item')
-            .data(data)
+            .data(timelineData)
             .enter()
             .append('g')
-            .attr('clip-path', 'url(#chart-content)')
+            .attr('clip-path', `url(#${chartContentClipPathId})`)
             .attr('class', 'item')
             .attr('transform', (d, i) => `translate(0, ${groupHeight * i})`)
             .selectAll('.dot')
@@ -230,27 +302,31 @@ class TimelineChart {
         let intervalBarMargin = (groupHeight - intervalBarHeight) / 2;
         let intervals = groupIntervalItems
             .append('rect')
-            .attr('class', withCustom('interval'))
-            .attr('width', (d) => Math.max(options.intervalMinWidth, xTimeScale(d.to) - xTimeScale(d.from)))
+            .attr('class', curry(addClasses, 'interval'))
+            //.attr('class', withCustomClass('interval'))
+            //.attr('class', addCustomClassesForIds)
+            .attr('width', (d) => Math.max(options.intervalMinWidth, xTimeScaleForContent(d.to) - xTimeScaleForContent(d.from)))
             .attr('height', intervalBarHeight)
             .attr('y', intervalBarMargin)
-            .attr('x', (d) => xTimeScale(d.from))
+            .attr('x', (d) => xTimeScaleForContent(d.from))
             .on('click', (d) => { !d.onClick || d.onClick(d); });
 
         // interval text
         let intervalTexts = groupIntervalItems
             .append('text')
             .text(d => d.label || '')  //  (typeof(d.label) === 'function' ? d.label(d) : d.label) || '')
-            .attr('fill', 'white')
-            .attr('class', withCustom('interval-text'))
+            //.attr('fill', 'white')
+            .attr('class', curry(addClasses, 'interval-text'))
+            //.attr('class', withCustomClass('interval-text'))
+            //.attr('class', addCustomClassesForIds)
             .attr('y', (groupHeight / 2) + 5)
-            .attr('x', (d) => xTimeScale(d.from));
+            .attr('x', (d) => xTimeScaleForContent(d.from));
 
         let groupDotItems = svg_g.selectAll('.series-dot-item')
-            .data(data)
+            .data(timelineData)
             .enter()
             .append('g')
-            .attr('clip-path', 'url(#chart-content)')
+            .attr('clip-path', `url(#${chartContentClipPathId})`)
             .attr('class', 'item')
             .attr('transform', (d, i) => `translate(0, ${groupHeight * i})`)
             .selectAll('.dot')
@@ -261,8 +337,10 @@ class TimelineChart {
 
         let dots = groupDotItems
             .append('circle')
-            .attr('class', withCustom('dot'))
-            .attr('cx', d => xTimeScale(d.at))
+            .attr('class', curry(addClasses, 'dot'))
+            //.attr('class', withCustomClass('dot'))
+            //.attr('class', addCustomClassesForIds)
+            .attr('cx', d => xTimeScaleForContent(d.at))
             .attr('cy', groupHeight / 2)
             .attr('r', 7)
             .on('click', (d) => { !d.onClick || d.onClick(d); });
@@ -293,49 +371,73 @@ class TimelineChart {
                 word,
                 line = [],
                 lineNumber = 0,
-                lineHeight = 1.1, // ems
+                lineHeight = 1.2, // ems
                 y = text.attr("y"),
                 dx = parseFloat(text.attr("dx")),
-                dy = parseFloat(text.attr("dy")),
-                lines = [];
+                dy = parseFloat(text.attr("dy"));
+                //lines = [];
                 var tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dx", dx + "em").attr("dy", dy + "em");
                 while (word = words.pop()) 
                 {
                     line.push(word);
                     tspan.text(line.join(" "));
+                    // create line break
                     if (tspan.node().getComputedTextLength() > width) 
                     {
                         line.pop();
                         tspan.text(line.join(" "));
                         line = [word];
-                        lines.push(line);
+                        //lines.push(line);
                         tspan = text.append("tspan")
                             .attr("x", 0)
-                            .attr("y", y)
+                            //.attr("y", y)
                             .attr("dx", dx + "em")
-                            .attr("dy", ++lineNumber * lineHeight + dy + "em")
+                            .attr("dy", lineHeight + "em")  //++lineNumber * lineHeight + dy + "em")
                             .text(word);
+                        var tspanFirst = text.select('tspan');
+                        dy = parseFloat(tspanFirst.attr("dy"));
+                        tspanFirst.attr('dy', dy-(lineHeight*.5)+"em");
                     }
                 }
             });
         }
       
         function updateNowMarker() {
-            let nowX = xTimeScale(new Date());
+            let nowX = xTimeScaleForContent(new Date());
 
             self.now.attr('x1', nowX).attr('x2', nowX);
         }
 
-        function withCustom(defaultClass) {
-            return d => d.customClass ? [d.customClass, defaultClass].join(' ') : defaultClass
+        function curry(fn) {
+            var args = Array.prototype.slice.call(arguments, 1);  // capture all but the 1st arg
+            return function() {
+                return fn.apply(this, args.concat(Array.prototype.slice.call(arguments, 0)));
+            }
         }
+        
+        function addClasses(defaultClass, data) {
+            //console.log('this: ', this, ' arguments: ', arguments);
+            var classes = [ defaultClass ];
+            if (!!data.customClass) classes.push(data.customClass);
+            var idClasses = (data.ids || []).map(id => dataIdClassPrefix+id);
+            return classes.concat(idClasses).join(' ');
+        }
+
+        // function withCustomClass(defaultClass) {
+        //     return d => d.customClass ? [d.customClass, defaultClass].join(' ') : defaultClass
+        // }
+
+        // function addCustomClassesForIds(data) {
+        //     var idClasses = (data.ids || []).map(id => "_id_"+id);
+        //     return idClasses.join(' ');
+        // }
 
         function zoomed() {
             if (self.onVizChangeFn && d3.event) {
                 self.onVizChangeFn.call(self, {
                     scale: d3.event.scale,
                     translate: d3.event.translate,
-                    domain: xTimeScale.domain()
+                    domain: xTimeScaleForContent.domain()
                 });
             }
 
@@ -343,10 +445,37 @@ class TimelineChart {
                 updateNowMarker();
             }
 
-            svg_g.select('.x.axis').call(xAxis);
+            //console.log("BEFORE  D:", xTimeScaleForContent.domain().map(x => x*1.0/25428046), "R:", xTimeScaleForContent.range());
 
-            svg_g.selectAll('circle.dot').attr('cx', d => xTimeScale(d.at));
-            svg_g.selectAll('rect.interval').attr('x', d => xTimeScale(d.from)).attr('width', d => Math.max(options.intervalMinWidth, xTimeScale(d.to) - xTimeScale(d.from)));
+            var ___dummy___ = zoom;  // include zoom in closure
+            
+            //var xTimeScaleForContent = xTimeScaleOriginal;
+            if (d3.event && d3.event.transform) {
+console.log(d3.event.transform);
+
+                // create new scale ojects based on event
+                xTimeScaleForContent = d3.event.transform.rescaleX(xTimeScaleOriginal);
+
+                // update ...
+                // svg_g.attr(
+                //     "transform",
+                //     'translate('+d3.event.transform.x+',0) scale('+d3.event.transform.k+',1)'
+                // );
+            }
+            else console.log('d3.event.transform is empty');
+
+            // update axes
+            xAxisScaled = xAxis.scale(xTimeScaleForContent);
+
+        //console.log("AFTER  D:", xTimeScaleForContent.domain().map(x => x*1.0/25428046), "R:", xTimeScaleForContent.range());
+
+            // update axes
+            gX.call(xAxisScaled);
+            // Draw X axis
+            //svg_g.select('.x.axis').call(xAxis);
+
+            svg_g.selectAll('circle.dot').attr('cx', d => xTimeScaleForContent(d.at));
+            svg_g.selectAll('rect.interval').attr('x', d => xTimeScaleForContent(d.from)).attr('width', d => Math.max(options.intervalMinWidth, xTimeScaleForContent(d.to) - xTimeScaleForContent(d.from)));
 
             svg_g.selectAll('.interval-text').attr('x', function(d) {
                     let positionData = getTextPositionData.call(this, d);
@@ -388,8 +517,8 @@ class TimelineChart {
 
             function getTextPositionData(d) {
                 this.textSizeInPx = this.textSizeInPx || this.getComputedTextLength();
-                var from = xTimeScale(d.from);
-                var to = xTimeScale(d.to);
+                var from = xTimeScaleForContent(d.from);
+                var to = xTimeScaleForContent(d.to);
                 return {
                     xPosition: from,
                     upToPosition: to,
@@ -398,6 +527,132 @@ class TimelineChart {
                 }
             }
         }
+
+        var getItemMinDate = self.getItemMinDate = function(pointOrInterval) {
+            var p = pointOrInterval;
+            return p.type === TimelineChart.TYPE.POINT ? p.at : p.from;
+        };
+        var getItemMaxDate = self.getItemMaxDate = function(pointOrInterval) {
+            var p = pointOrInterval;
+            return p.type === TimelineChart.TYPE.POINT ? p.at : p.to;
+        };
+    
+        var animateTransitions = true;
+        self.animateTransitions = function(value) {
+            if (value === undefined)
+                return animateTransitions;
+            animateTransitions = !!value;
+        }
+
+        self.refresh = function() { zoomed(); }
+        
+        self.resetTransform = function(animate) {
+            if (animate === undefined ? animateTransitions : animate)
+                svg_g.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+            else
+                svg_g.call(zoom.transform, d3.zoomIdentity);
+        };
+
+        // translate the timeline so that the specified range value is centered within the view.  Extent constraints will be respected.
+        function translateToRangeValue(x, animate) {
+            if (animate === undefined ? animateTransitions : animate)
+                svg_g.transition().duration(500).call(zoom.translateTo, x, 0);
+            else
+                svg_g.call(zoom.translateTo, x, 0);
+        }
+        //self.translateToRangeValue = translateToRangeValue;
+
+        // set zoom scale
+        function setZoomScale(k, animate) {
+            if (animate === undefined ? animateTransitions : animate)
+                svg_g.transition().duration(500).call(zoom.scaleTo, k);
+            else
+                svg_g.call(zoom.scaleTo, k);
+        }
+
+        // translate to a position that is the given percentage between the min and max values
+        function translateToPercent(normalizedPercentage) {
+            var range = xTimeScaleForContent.range();
+            var delta = range[1] - range[0];
+            var x = delta * normalizedPercentage + range[0];
+            translateToRangeValue(x);
+        }
+        self.translateToPercent = translateToPercent;
+        
+        function translateToDate(date, animate) {
+            var rangeValue = xTimeScaleOriginal(date);
+            translateToRangeValue(rangeValue, animate);
+        }
+        self.translateToDate = translateToDate;
+
+        self.highlightNodeByIds = function(idOrIdArray, scrollIntoView, highlightCssClassName) {
+            var ___dummy___ = [zoom, xTimeScaleForContent];  // include zoom in closure
+            var idArray = typeof(idOrIdArray) === "string" ?  [idOrIdArray] : idOrIdArray;
+            if (idArray.constructor !== [].constructor) return { data: [] };
+
+            // Clear highlight in case one is set
+            d3.selectAll('.'+highlightCssClassName).classed(highlightCssClassName, false);
+
+            var selector = idArray.map(id => "."+dataIdClassPrefix+id).join(',');
+            var sel = d3.selectAll(selector);
+
+            // if selector doesn't match an element...
+            if (sel.nodes().length == 0) return { data: [] };
+
+            // Highlight new node
+            sel.classed(highlightCssClassName, true);
+
+            var items = sel.data();
+            var itemToUse = items.find(item => item.type == TimelineChart.TYPE.POINT) || items[0];
+            // optionally scroll the node into view
+            if (!!scrollIntoView) {
+                var itemTime = self.getItemAvgDate(itemToUse);
+                var rangeValue = xTimeScaleOriginal(itemTime);
+                var currentTransform = d3.zoomTransform(svg_g.node());
+                var newTransform = d3.zoomIdentity.translate(-400 + 596 - rangeValue).scale(currentTransform.k);
+
+                console.log('target range value: ', rangeValue); //, 'scaled: ', rangeValue*currentTransform.k);
+                console.log('current transform: ', currentTransform);
+                //console.log('current transform.translate(100,0): ', currentTransform.translate(100, 0), currentTransform.x+currentTransform.k*100);
+                console.log('estimated transform: ', newTransform);
+                console.log('original scale:  range: ', xTimeScaleOriginal.range(), 'domain: ', xTimeScaleOriginal.domain())
+                console.log('current scale:  range: ', xTimeScaleForContent.range(), 'domain: ', xTimeScaleForContent.domain())
+
+                var neighborInfo = self.getSeriesNeighbors(itemToUse);
+                if (neighborInfo.nearest != null) {
+                    var timeCoord = xTimeScaleForContent(itemTime);
+                    var nearestTimeCoord = xTimeScaleForContent(neighborInfo.nearest.time);
+                    var timeDeltaInMs = Math.abs(timeCoord - nearestTimeCoord);
+                    var kNew = (20 / timeDeltaInMs) * currentTransform.k;
+                    console.log('time delta (ms): ', timeDeltaInMs, 'new k: ', kNew);
+                    if (kNew > currentTransform.k) {
+                        console.log('date: ', itemTime, 'x: ', timeCoord);
+                        console.log('nearestDate: ', itemTime, 'x: ', nearestTimeCoord);
+                        console.log('k current: ', currentTransform.k, 'new: ', kNew);
+                        // Perform scale transformation
+                        setZoomScale(kNew, false);
+                    }
+                }
+
+                // Perform translation transformation
+                translateToDate(itemTime, true);
+
+                //svg_g.call(zoom.transform, newTransform);
+                //svg_g.call(zoom.translateTo, rangeValue);
+                //console.log('ACTUAL new transform: ', d3.zoomTransform(svg_g.node()));
+            }
+
+            return {
+                data: items
+            };
+        };
+
+        self.scaleTo = function(k) {
+            svg_g.call(zoom.scaleTo, k);
+        }
+
+        console.log("data successfully bound to timeline chart: ", timelineData);
+        console.log("flattened data: ", allElements);
     }
     extendOptions(ext = {}) {
         let defaultOptions = {
@@ -406,22 +661,88 @@ class TimelineChart {
             textTruncateThreshold: 30,
             enableLiveTimer: false,
             timerTickInterval: 1000,
-            hideGroupLabels: false
+            groupHeight: 40,
+            groupWidth: 300
         };
         Object.keys(ext).map(k => defaultOptions[k] = ext[k]);
         return defaultOptions;
     }
-    getPointMinDt(p) {
+    getItemMinDate(p) {
         return p.type === TimelineChart.TYPE.POINT ? p.at : p.from;
     }
-    getPointMaxDt(p) {
+    getItemMaxDate(p) {
         return p.type === TimelineChart.TYPE.POINT ? p.at : p.to;
+    }
+    getItemAvgDate(p) {
+        return p.type === TimelineChart.TYPE.POINT ? p.at : new Date(p.from * 1 + (p.to - p.from)/2);
+    }
+    // get the previous and next dates in the series (that are not identical to the starting/ending dates of the current item)
+    getSeriesNeighbors(item) {
+        // Find an earlier item that ends before this item begins
+        var earlierEndingItem = item;
+        while(earlierEndingItem != null && earlierEndingItem.to >= item.from)
+            earlierEndingItem = earlierEndingItem.prevItem;
+    
+        // Find a later item that starts after this item ends
+        var laterStartingItem = item;
+        while(laterStartingItem != null && laterStartingItem.from <= item.to)
+            laterStartingItem = laterStartingItem.nextItem;
+
+        var result = {
+            earlier: earlierEndingItem == null ? null : {
+                item: earlierEndingItem,
+                time: earlierEndingItem.to,
+                interval:  item.from - earlierEndingItem.to
+            },
+            later: laterStartingItem == null ? null : {
+                item: laterStartingItem,
+                time: laterStartingItem.from,
+                interval: laterStartingItem.from - item.to
+            }
+        };
+        if (earlierEndingItem == null) result.nearest = result.later;
+        else if (laterStartingItem == null) result.nearest = result.earlier;
+        else result.nearest = result.earlier.interval < result.later.interval ? result.earlier : result.later;
+        return result;
+        // if (!item.prevItem) {
+        //     if (!item.nextItem) return null;
+        //     return item.nextItem.from;
+        // }
+        // if (!item.nextItem) return item.prevItem.to;
+        // // both previous and next intervals exist
+        // var prevInterval = item.from - item.prevItem.to;
+        // var nextInterval = item.nextItem.from - item.to;
+        // return prevInterval < nextInterval ? item.prevItem.to : item.nextItem.from;
     }
     onVizChange(fn) {
         this.onVizChangeFn = fn;
         return this;
     }
 
+    // reset() {
+    //     this.reset();
+    // }
+    // highlightNodeByIds(dataId, scrollIntoView, highlightCssClassName) {
+    //     this.highlightNodeByIds(dataId, scrollIntoView, highlightCssClassName);
+    // }
+    // scaleDomain(newDomain) {
+    //     if (!newDomain)
+    //         return this.contentTimeScale.domain();
+    //     this.contentTimeScale.domain(newDomain);
+    //     this.refresh();
+    // }
+    // scaleRange(newRange) {
+    //     if (!newRange)
+    //         return this.contentTimeScale.range();
+    //     this.contentTimeScale.range(newRange);
+    //     this.refresh();
+    // }
+    // scaleMap(value) {
+    //     return this.contentTimeScale(value);
+    // }
+    // scaleInvert(value) {
+    //     return this.contentTimeScale.invert(value);
+    // }
 }
 
 TimelineChart.TYPE = {

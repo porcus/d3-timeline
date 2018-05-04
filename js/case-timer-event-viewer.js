@@ -10,18 +10,25 @@ class CaseTimerEventViewer {
         // Note:  This function will ONLY append the first element in the HTML string literal provided.
         if (!d3.selection.prototype.appendHTML) {
             d3.selection.prototype.appendHTML =
-            d3.selection.enter.prototype.appendHTML = function(HTMLString) {
+            //d3.selection.enter.prototype.appendHTML = 
+            function(HTMLString) {
                 return this.select(function() {
                     return this.appendChild(document.importNode(new DOMParser().parseFromString(HTMLString, 'text/html').body.childNodes[0], true));
                 });
             };
         }
-        d3.selection.prototype.hide = d3.selection.enter.prototype.hide = function() { this.style('display', 'none') };
-        d3.selection.prototype.show = d3.selection.enter.prototype.show = function() { this.style('display', null) };
-        d3.selection.prototype.visible = d3.selection.enter.prototype.visible = function(value) { if (value === undefined) return this.style('display') !== 'none'; this.style('display', !!value ? null : 'none'); };
+        d3.selection.prototype.hide = 
+            //d3.selection.enter.prototype.hide = 
+            function() { this.style('display', 'none') };
+        d3.selection.prototype.show = 
+            //d3.selection.enter.prototype.show = 
+            function() { this.style('display', null) };
+        d3.selection.prototype.visible = 
+            //d3.selection.enter.prototype.visible = 
+            function(value) { if (value === undefined) return this.style('display') !== 'none'; this.style('display', !!value ? null : 'none'); };
 
         function appendHtmlNodesToHead(headHTMLString) {
-            var targetNode = d3.select('head')[0][0];
+            var targetNode = d3.select('head').node();
             var nodesToImport = new DOMParser().parseFromString(headHTMLString, 'text/html').head.childNodes;
             for(var i = 0; i < nodesToImport.length; i++) {
                 targetNode.appendChild(document.importNode(nodesToImport[i], true));
@@ -54,9 +61,9 @@ class CaseTimerEventViewer {
         //     window.document.dispatchEvent(DOMContentLoaded_event);
         // }, 500);
 
-        function initializeTableFeaturesAsync() {
+        function initializeTableFeatures() {
             if (window.Tablesaw === undefined) {
-                setTimeout(initializeTableFeaturesAsync, 500);
+                setTimeout(initializeTableFeatures, 500);
                 return;
             }
 
@@ -65,89 +72,148 @@ class CaseTimerEventViewer {
 
 
         d3.select(element).appendHTML(`
-            <div id="case-timer-event-viewer-container" class="container-fluid">
+            <div id="case-timer-event-viewer-container" class="container-fluid font-scale-pct-80">
 
-                <h3 id="case-timer-event-viewer-error">Error: Invalid input argument.  Please try again.</h3>
+                <h4 id="case-timer-event-viewer-error">Error: Invalid input argument.  Please try again.</h4>
 
-                <div>Please enter a valid case Id, a valid case timer Id, or a valid SLA Id and then continue: <input type="text" id="entity-id" style="width: 20em;" /> <input type="button" value="Continue" id="load-case"/> </div>
-
-                <div id="case-timer-event-viewer-data">
-
-                    <div class="row">
-                        <div class="col-xs-12">
-                            <div class="heading">Case Properties (Latest)</div>
-                            <div id="case-details-latest" class="property-card-flex-layout" ></div>
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" placeholder="Enter a valid case Id, case timer Id, or SLA Id" id="entity-id" />
+                            <div class="input-group-append">
+                                <button class="btn btn-primary">Load</button>
+                            </div>
                         </div>
                     </div>
-                    <br>
+                </div>
 
-                    <div class="row" style="display: block;">
-                        <div class="col-xs-12">
-                            <div class="heading">SLA Properties (Latest)</div>
-                            <div id="sla-details-latest" class="property-card-flex-layout" ></div>
+                <div id="case-timer-event-viewer-content">
+
+                    <div class="mb-3">
+                        <div class="h4 bottom-border">
+                            <label for="case-timer-data-latest-toggle">Latest Data</label>
+                            <input type="checkbox" id="case-timer-data-latest-toggle" data-toggle-target-element-id="case-timer-data-latest" />
+                        </div>
+                        <div id="case-timer-data-latest" class="indent">
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <div class="h6">Case</div>
+                                    <div id="case-details-latest" class="property-card-flex-layout" ></div>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <div class="h6">SLA</div>
+                                    <div id="sla-details-latest" class="property-card-flex-layout" ></div>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <div class="h6">Case Timers</div>
+                                    <div id="case-timer-details-latest" class="scrollable-container" ></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <br>
 
-                    <div class="row">
-                        <div class="col-xs-12">
-                            <div class="heading">Case Timers (Latest)</div>
-                            <div id="case-timer-details-latest" class="scrollable-container" ></div>
-                        </div>
-                    </div>
-                    <br>
 
-                    <div class="row">
-                        <div class="col-xs-12">
-                            <div class="heading">Case Timer Events Timeline</div>
+                    <!-- Timeline -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="h4 bottom-border">Case Timer Events Timeline
+                                <button id="reset-timeline-view" type="button" class="btn btn-primary btn-sm">Reset View</button>
+                            </div>
                             <div id="timeline-chart" class="chart-container" ></div>
                         </div>
                     </div>
-                    <br>
 
-                    <div class="row">
-                        <div class="col-xs-12">
-                            <div class="heading">Case Timer Events</div>
-                            <div id="event-details" class="scrollable-container responsive-table-1100" ></div>
+
+                    <div class="mb-3">
+                        <div id="selected-case-timer-label" class="h4 bottom-border">Selected Case Timer</div>
+                        <div class="row">
+                            <div class="col-8">
+                                <div class="h6">Events</div>
+                                <div id="event-details" class="scrollable-container" ></div>
+                            </div>
+                            <div class="col-4">
+                                <div class="h6">Snapshots</div>
+                                <div id="case-timer-snapshot-details" class="scrollable-container" ></div>
+                            </div>
                         </div>
                     </div>
-                    <br>
 
-                    <div class="row">
-                        <div class="col-xs-12">
-                            <div class="heading">Case Properties (Historical)</div>
-                            <div id="case-details-historical" class="property-card-flex-layout" ></div>
+
+                    <div class="h4 bottom-border">
+                        <label for="case-timer-data-historical-contextual-toggle">Historical Data Contemporary with Selected Snapshot</label>
+                        <input type="checkbox" id="case-timer-data-historical-contextual-toggle" data-toggle-target-element-id="case-timer-data-historical-contextual" />
+                    </div>
+                    <div id="case-timer-data-historical-contextual" class="indent">
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="h6">Selected Snapshot</div>
+                                <div id="snapshot-details-historical" class="property-card-flex-layout" ></div>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="h6">Case</div>
+                                <div id="case-details-historical" class="property-card-flex-layout" ></div>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="h6">SLA</div>
+                                <div id="sla-details-historical" class="property-card-flex-layout" ></div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="h5">Case Timers</div>
+                                <div id="case-timer-details-historical" class="scrollable-container" ></div>
+                            </div>
                         </div>
                     </div>
-                    <br>
-
-                    <div class="row" style="display: block;">
-                        <div class="col-xs-12">
-                            <div class="heading">SLA Properties (Historical)</div>
-                            <div id="sla-details-historical" class="property-card-flex-layout" ></div>
-                        </div>
-                    </div>
-                    <br>
-
-                    <div class="row">
-                        <div class="col-xs-12">
-                            <div class="heading">Case Timers (Historical)</div>
-                            <div id="case-timer-details-historical" class="scrollable-container" ></div>
-                        </div>
-                    </div>
-                    <br>
-
-                    <div class="row" style="display: none;">
-                        <div class="col-xs-12">
-                            <div class="heading">Case Timer Snapshots</div>
-                            <div id="snapshot-details" class="scrollable-container responsive-table" ></div>
-                        </div>
-                    </div>
-                    <br>
 
                 </div>
 
             </div>`);
+
+        // each: function(t) {
+        //     for (var n = this._groups, e = 0, r = n.length; e < r; ++e)
+        //         for (var i, o = n[e], u = 0, a = o.length; u < a; ++u)(i = o[u]) && t.call(i, i.__data__, u, o);
+        //     return this
+        // }
+
+        var each = function(callback, node) {
+            callback.call(node);
+            return this
+        };
+
+        each(function() {
+            var self = this;
+            console.log(self === this);
+        }, d3.select('[data-toggle-target-element-id]').node());
+
+        d3.selectAll('[data-toggle-target-element-id]').each(function(d, i, o) {
+            var toggleEl = this;
+            var toggle = d3.select(toggleEl);
+
+            var targetElementId = toggle.attr('data-toggle-target-element-id');
+            if (!targetElementId) return;
+
+            var target = d3.select('#'+targetElementId);
+            var targetElement = target.node();
+            if (!targetElement) return;
+
+            var toggleFn = function() {
+                var isVisible = toggle.property('checked');
+                toggle.html(isVisible ? 'hide' : 'show');
+                target.style('display', isVisible ? '' : 'none');
+            };
+            toggle.on('click', toggleFn);
+            toggleFn();
+         });
 
         d3.select('#load-case')
             .on('click', d => { 
@@ -155,14 +221,17 @@ class CaseTimerEventViewer {
                 window.location.href = newurl;
             });
 
+        const selectedCaseTimerLabel = document.getElementById('selected-case-timer-label');
         const latestCaseDetailsContainer = document.getElementById('case-details-latest');
         const latestSlaDetailsContainer = document.getElementById('sla-details-latest');
+        const historicalSnapshotDetailsContainer = document.getElementById('snapshot-details-historical');
         const historicalCaseDetailsContainer = document.getElementById('case-details-historical');
         const historicalSlaDetailsContainer = document.getElementById('sla-details-historical');
-        const chartContainer = document.getElementById('timeline-chart');
+        const timelineContainer = document.getElementById('timeline-chart');
         const latestCaseTimerDetailsContainer = document.getElementById('case-timer-details-latest');
         const historicalCaseTimerDetailsContainer = document.getElementById('case-timer-details-historical');
         const eventDetailsContainer = document.getElementById('event-details');
+        const caseTimerSnapshotDetailsContainer = document.getElementById('case-timer-snapshot-details');
         const selectedSnapshotContainer = document.getElementById('snapshot-details');
 
         // =======================================================================================================================================================================
@@ -173,7 +242,7 @@ class CaseTimerEventViewer {
         //  onClick - (optional) A click event handler which will be registered on the content.
         // =======================================================================================================================================================================
 
-        // Input 'd' represents the Case
+        // Case property configs
         const casePropertyConfigs = [
             { propertyLabel: "Identifier", propertyValueSelector: x => x.Identifier, onClick: null },
             { propertyLabel: "Id", propertyValueSelector: x => x.Id, onClick: null },
@@ -186,8 +255,10 @@ class CaseTimerEventViewer {
             { propertyLabel: "Owner's Primary Site", propertyValueSelector: x => `${x.Employee.PrimarySite.Identifier} - ${x.Employee.PrimarySite.Name} (${x.Employee.PrimarySite.Id})`, onClick: null },
         ];
 
-        // Input 'd' represents the CaseTimer
+        // CaseTimer property configs
         const caseTimerPropertyConfigs = [
+            { priority: 0, propertyLabel: "#", propertyValueSelector: x => x.OrdinalId, onClick: null },
+            { priority: 5, propertyLabel: "Events", propertyValueSelector: x => x.Events, onClick: ct => renderEventsTable(ct.Events, []) },
             { priority: 0, propertyLabel: "Type", propertyValueSelector: x => x.CaseTimerType, onClick: null },
             { priority: 1, propertyLabel: "Name", propertyValueSelector: x => x.Name, onClick: null },
             { priority: 2, propertyLabel: "Current Effective Clock State", propertyValueSelector: x => separateWordsInCamelCaseStringWithSpaces(x.CurrentEffectiveClockState), onClick: null },
@@ -198,25 +269,19 @@ class CaseTimerEventViewer {
                 [x.RespectNonWorkingSchedule ? "<nobr>Non-Working Schedule</nobr>" : null, 
                  x.RespectSlaClock ? "<nobr>SLA Clock</nobr>" : null, 
                  x.RespectWorkCalendar ? "<nobr>Work Calendar</nobr>" : null].filter(r => !!r).join(', '), onClick: null },
-
             { priority: 2, propertyLabel: "Elapsed Time (Offset + Run Time)", propertyValueSelector: x => `${x.ElapsedTime} (${x.Offset} + ${x.RunTime})`, onClick: null },
                 // { propertyLabel: "Offset", propertyValueSelector: x => x.Offset, onClick: null },
                 // { propertyLabel: "Run Time", propertyValueSelector: x => x.RunTime, onClick: null },
                 // { propertyLabel: "Elapsed Time", propertyValueSelector: x => x.ElapsedTime, onClick: null },
-
             { priority: 3, propertyLabel: "Last Calculated", propertyValueSelector: x => x.LastCalculated, onClick: null },
             //{ propertyLabel: "Last Modified", propertyValueSelector: x => x.LastModified, onClick: null },
-            // { propertyLabel: "Respect NonWorking Schedule", propertyValueSelector: x => x.RespectNonWorkingSchedule, onClick: null },
-            // { propertyLabel: "Respect Sla Clock", propertyValueSelector: x => x.RespectSlaClock, onClick: null },
-            // { propertyLabel: "Respect Work Calendar", propertyValueSelector: x => x.RespectWorkCalendar, onClick: null },
             //{ propertyLabel: "Is Active", propertyValueSelector: x => x.IsActive, onClick: null },
             { priority: 4, propertyLabel: "Started", propertyValueSelector: x => x.Started, onClick: null },
             { priority: 4, propertyLabel: "Stopped", propertyValueSelector: x => x.Stopped, onClick: null },
             { priority: 6, propertyLabel: "Id", propertyValueSelector: x => x.Id, onClick: null },
-            { priority: 0, propertyLabel: "Events", propertyValueSelector: x => x.Events, onClick: d => renderEventDetailsTable(d.Events, []) },
         ];
 
-        // Input 'd' represents the SLA
+        // SLA property configs
         const slaPropertyConfigs = [
             { priority: 1, propertyLabel: "Respect SLA Pauses", propertyValueSelector: x => x.RespectSlaPauses, onClick: null },
             { priority: 1, propertyLabel: "Sla Replacement Elapsed Time Allocation Policy", propertyValueSelector: x => x.SlaReplacementElapsedTimeAllocationPolicy, onClick: null },
@@ -245,19 +310,64 @@ class CaseTimerEventViewer {
             { priority: 1, propertyLabel: "Estimated Next CP Time", propertyValueSelector: x => x.EstimatedNextControlPointDate, onClick: null },
         ];
 
-        // Input 'd' represents the CaseTimerEvent
+        // Case Timer Event property configs
         const caseTimerEventPropertyConfigs = [
+            { priority: 0, propertyLabel: "#", propertyValueSelector: x => x.OrdinalId, onClick: null },
+            { priority: 1, propertyLabel: "Snapshot<br>(details)", propertyValueSelector: d => d.CaseTimerSnapshot, onClick: cte => renderEventDetails(cte) },
             { priority: 1, propertyLabel: "Event Time", propertyValueSelector: d => d.EventTime, onClick: null },
             { priority: 1, propertyLabel: "Event Identifier", propertyValueSelector: d => d.EventIdentifierString, onClick: null },
-            { priority: 1, propertyLabel: "Is Derived", propertyValueSelector: d => d.IsDerived, onClick: null },
-            { priority: 1, propertyLabel: "Is Inherited", propertyValueSelector: d => d.IsInherited, onClick: null },
-            { priority: 1, propertyLabel: "Is Creation", propertyValueSelector: d => d.IsCaseTimerCreationEvent, onClick: null },
             { priority: 1, propertyLabel: "App Id", propertyValueSelector: d => d.AppIdentifier, onClick: null },
-            { priority: 1, propertyLabel: "Id", propertyValueSelector: d => d.Id, onClick: null },
-            { priority: 1, propertyLabel: "Data at Point in Time", propertyValueSelector: d => d.CaseTimerSnapshot, onClick: cte => renderHistoricalDataFromSnapshot(cte.CaseTimerSnapshot) },
-            { priority: 1, propertyLabel: "Snapshot", propertyValueSelector: d => d.CaseTimerSnapshot, onClick: cte => displaySnapshotData(cte.CaseTimerSnapshot) },
-            { priority: 1, propertyLabel: "EventData", propertyValueSelector: d => d.EventData, onClick: cte => displayEventData(cte) },
+            { priority: 4, propertyLabel: "Is Derived", propertyValueSelector: d => d.IsDerived, onClick: null },
+            { priority: 4, propertyLabel: "Is Inherited", propertyValueSelector: d => d.IsInherited, onClick: null },
+            { priority: 4, propertyLabel: "Is Creation", propertyValueSelector: d => d.IsCaseTimerCreationEvent, onClick: null },
+            { priority: 6, propertyLabel: "Id", propertyValueSelector: d => d.Id, onClick: null },
+            { priority: 5, propertyLabel: "Snapshot<br>(JSON)", propertyValueSelector: d => d.CaseTimerSnapshot, onClick: cte => displaySnapshotData(cte.CaseTimerSnapshot) },
+            { priority: 5, propertyLabel: "EventData<br>(JSON)", propertyValueSelector: d => d.EventData, onClick: cte => displayEventData(cte) },
         ];
+
+        // Case Timer Snapshot property configs
+        const caseTimerSnapshotPropertyConfigs = [
+            { priority: 0, propertyLabel: "Snapshot<br>(details)", propertyValueSelector: d => d, onClick: cts => renderHistoricalDataFromSnapshot(cts) },
+            { priority: 0, propertyLabel: "Snapshot Time", propertyValueSelector: d => d.SnapshotTime, onClick: null },
+            { priority: 1, propertyLabel: "Id", propertyValueSelector: d => d.Id, onClick: null },
+            { priority: 6, propertyLabel: "Is Derived", propertyValueSelector: d => d.IsDerived, onClick: null },
+            { priority: 6, propertyLabel: "Snapshot<br>(JSON)", propertyValueSelector: d => d.SnapshotData, onClick: cts => displaySnapshotData(cts) },
+        ];
+
+        var caseDataModel;
+        function getCaseDataModel() {
+            return caseDataModel;
+        }
+        self.getCaseDataModel = getCaseDataModel;
+
+        self.renderCaseData = renderCaseData;
+        self.renderCaseData(initialCaseData);
+
+        var timeline;
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Other functions below
+
+        function renderCaseData(caseDataToRender) {
+            // Update visibility of sections
+            d3.select('#case-timer-event-viewer-error').visible(caseDataToRender === null);
+            d3.select('#case-timer-event-viewer-content').visible(caseDataToRender !== null);
+
+            // Validate input
+            if (!caseDataToRender) { /*alert('case data was not provided.');*/ return; }
+            if ((caseDataToRender.Timers || []).length == 0) { alert('case data contains no timers'); return; }
+    
+            console.log("Original case data:", caseDataToRender);
+            let caseTimerTimelineData = transformCaseDataToTimelineData(caseDataToRender);
+            console.log("Timeline data:", caseTimerTimelineData);
+
+            // Render stuff
+            renderLatestCaseProperties(caseDataToRender);
+            renderLatestCaseTimersTable(caseDataToRender.Timers);
+            timeline = self.timeline = renderTimeline(timelineContainer, caseTimerTimelineData);
+
+            caseDataModel = caseDataToRender;
+        }
 
         function displaySnapshotData(caseTimerSnapshot)
         {
@@ -330,55 +440,21 @@ class CaseTimerEventViewer {
             }
         }
 
-        // Input 'd' represents the CaseTimerSnapshot
-        const caseTimerSnapshotPropertyConfigs = [
-            { propertyLabel: "Id", propertyValueSelector: d => d.Id, onClick: null },
-            { propertyLabel: "Is Derived", propertyValueSelector: d => d.IsDerived, onClick: null },
-            { propertyLabel: "Snapshot Time", propertyValueSelector: d => d.SnapshotTime, onClick: null },
-            { propertyLabel: "Snapshot Data", propertyValueSelector: d => d.SnapshotData, onClick: d => createJsonViewerPopup(d.SnapshotData, "Data for Snapshot "+d.Id) },
-        ];
-
-        var caseDataModel;
-        function renderCaseData(caseDataToRender) {
-            // Update visibility of sections
-            d3.select('#case-timer-event-viewer-error').visible(caseDataToRender === null);
-            d3.select('#case-timer-event-viewer-data').visible(caseDataToRender !== null);
-
-            // Validate input
-            if (!caseDataToRender) { /*alert('case data was not provided.');*/ return; }
-            if ((caseDataToRender.Timers || []).length == 0) { alert('case data contains no timers'); return; }
-    
-            console.log("Original case data:", caseDataToRender);
-            let caseTimerTimelineData = transformCaseDataToTimelineData(caseDataToRender);
-            console.log("Timeline data:", caseTimerTimelineData);
-
-            // Render stuff
-            renderLatestCaseProperties(caseDataToRender);
-            renderLatestCaseTimerDetailsTable(caseDataToRender.Timers);
-            renderTimeline(chartContainer, caseTimerTimelineData);
-
-            caseDataModel = caseDataToRender;
-        }
-
-        self.renderCaseData = renderCaseData;
-
-        self.renderCaseData(initialCaseData);
-
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
         function renderTimeline(container, timelineData) {
-            removeAllChildNodesOfElement(container);
+            emptyContainer(container);
 
-            const timeline = new TimelineChart(container, timelineData, {
+            var timeline = new TimelineChart(container, timelineData, {
                 //enableLiveTimer: true, 
                 tip: formatTipText,
-                groupHeight: 40
+                groupHeight: 36,
+                groupWidth: 400
             }); //.onVizChange(e => console.log(e));
+            d3.select('#reset-timeline-view').on('click', () => timeline.resetTransform())
 
             // Resize container vertically to fit timeline
-            var svgHeight = d3.select(container).select("svg").attr("height")*1;
-            d3.select(container).style("height", (svgHeight+10)+"px");
+            var timelineHeight = d3.select(container).node().clientHeight;
+            d3.select(container).style("height", (timelineHeight)+"px");
+            return timeline;
         }
 
 
@@ -392,9 +468,9 @@ class CaseTimerEventViewer {
             return moment(date).format('YYYY-MM-DD hh:mm:ss.SSS a');
         }
 
-        var createLabelFromIntervalDuration = function(d){
-            return formatDuration(d.to, d.from);
-        };
+        // function createLabelFromIntervalDuration(d){
+        //     return formatDuration(d.to, d.from);
+        // };
 
         function formatLabelForTipHtml(label) {
             return (label || '').replace(/ /g, '&nbsp;').replace(/\\n/g, '<br>');
@@ -419,7 +495,7 @@ class CaseTimerEventViewer {
             // if d.label is a fn, call it now.
             var lbl = typeof(d.label) == 'function' ? formatLabelForTipHtml(d.label(d)+'') : typeof(d.label)=='string' ? formatLabelForTipHtml(d.label) : '(no label)';
             // include "at" time for points or from/to time range for intervals with label
-            var result = !!d.at ? 
+            var result = d.type == TimelineChart.TYPE.POINT ? 
                 lbl+'<br><br>Time: '+formatDate(d.at) : 
                 lbl+'<br><br>From: '+formatDate(d.from)+'<br>To: '+formatDate(d.to)+'<br>Duration: '+formatDuration(d.to, d.from);
             return result;
@@ -460,8 +536,10 @@ class CaseTimerEventViewer {
             return !!result && result.index === 0;
         }
 
-        function removeAllChildNodesOfElement(container) {
-            // remove all elements of the container
+
+        function emptyContainer(container)
+        {
+            // remove all child elements of the specified container
             while (container.firstChild) {
                 container.removeChild(container.firstChild);
             }
@@ -469,40 +547,81 @@ class CaseTimerEventViewer {
 
         function renderLatestCaseProperties(caseDataToRender)
         {
-            removeAllChildNodesOfElement(latestCaseDetailsContainer);
+            // Case properties
+            emptyContainer(latestCaseDetailsContainer);
             renderProperties(latestCaseDetailsContainer, casePropertyConfigs, caseDataToRender);
 
-            removeAllChildNodesOfElement(latestSlaDetailsContainer);
+            // Sla properties
+            emptyContainer(latestSlaDetailsContainer);
             renderProperties(latestSlaDetailsContainer, slaPropertyConfigs, caseDataToRender.Sla);
             //renderTableOfObjects(latestSlaDetailsContainer, slaPropertyConfigs, allSlas, selectedSlas);
         }
 
-        function renderLatestCaseTimerDetailsTable(allCaseTimers, selectedTimers)
+        function renderLatestCaseTimersTable(allCaseTimers, selectedTimers)
         {
-            removeAllChildNodesOfElement(latestCaseTimerDetailsContainer);
+            emptyContainer(latestCaseTimerDetailsContainer);
             renderTableOfObjects(latestCaseTimerDetailsContainer, caseTimerPropertyConfigs, allCaseTimers, selectedTimers);
         }
 
         // Event details are treated as immutable, so we don't need to differentiate between latest/historical
-        function renderEventDetailsTable(allEvents, selectedEvents)
+        function renderEventsTable(allEvents, selectedEvents)
         {
-            removeAllChildNodesOfElement(eventDetailsContainer);
+            var ct = allEvents[0].CaseTimer;
+            d3.select(selectedCaseTimerLabel).html(`Timer #${ct.OrdinalId} for ${ct.CaseTimerType === 'CaseTimer' ? 'Case' : 'Sla'}: "${ct.Name}"`);
+
+            emptyContainer(eventDetailsContainer);
+            emptyContainer(caseTimerSnapshotDetailsContainer);
+
+            var snapshotMap = d3.map(caseDataModel.Snapshots, ss => ss.Id);
+            var snapshotsForAllEvents = allEvents.map(evt => snapshotMap.get(evt.CaseTimerSnapshot.Id));
+            var distinctSnapshotsForAllEvents = d3.map(snapshotsForAllEvents, ss => ss.Id).values();
+            var orderedDistinctSnapshotsForAllEvents = sortBy(distinctSnapshotsForAllEvents, ss => ss.SnapshotTime, true);
+            var snapshotsForSelectedEvents = selectedEvents.map(evt => snapshotMap.get(evt.CaseTimerSnapshot.Id));
+
             renderTableOfObjects(eventDetailsContainer, caseTimerEventPropertyConfigs, allEvents, selectedEvents);
+            renderTableOfObjects(caseTimerSnapshotDetailsContainer, caseTimerSnapshotPropertyConfigs, orderedDistinctSnapshotsForAllEvents, snapshotsForSelectedEvents);
 
             var latestSnapshot = maxBy(selectedEvents.map(x => x.CaseTimerSnapshot), x => x.SnapshotTime);
             renderHistoricalDataFromSnapshot(latestSnapshot);
         }
 
+        function renderEventDetails(caseTimerEvent)
+        {
+            // In the timeline, highlight the related point (and interval) based on this event
+            timeline.highlightNodeByIds(['p'+caseTimerEvent.Id, 'i'+caseTimerEvent.Id], true, 'chart-node-highlight');
+
+            // Render any historical data associated with this event's snapshot
+            renderHistoricalDataFromSnapshot(caseTimerEvent.CaseTimerSnapshot);
+
+            // re-render events table
+            renderEventsTable(caseTimerEvent.CaseTimer.Events, [caseTimerEvent]);
+        }
+
         function renderHistoricalDataFromSnapshot(snapshot)
         {
-            removeAllChildNodesOfElement(historicalCaseDetailsContainer);
-            removeAllChildNodesOfElement(historicalSlaDetailsContainer);
+            emptyContainer(historicalSnapshotDetailsContainer);
+            emptyContainer(historicalCaseDetailsContainer);
+            emptyContainer(historicalSlaDetailsContainer);
+            emptyContainer(historicalCaseTimerDetailsContainer);
 
             if (!snapshot) return;
 
+            renderProperties(historicalSnapshotDetailsContainer, caseTimerSnapshotPropertyConfigs, snapshot);
             renderProperties(historicalCaseDetailsContainer, casePropertyConfigs, snapshot.SnapshotData.CaseTimer.Case);
             renderProperties(historicalSlaDetailsContainer, slaPropertyConfigs, snapshot.SnapshotData.CaseTimer.Case.Sla);
-            
+
+            // For each case timer in effect, resolve the latest snapshot whose snapshot time is <= the current snapshot 
+            var eligibleSnapshots = getCaseDataModel().Snapshots.filter(x => x.SnapshotTime < snapshot.SnapshotTime);
+            var snapshotsGroupedByTimerId = d3.nest()
+                .key(d => d.SnapshotData.CaseTimer.Id)
+                .entries(eligibleSnapshots);
+            var latestSnapshotsByDistinctTimerId = snapshotsGroupedByTimerId
+                .map(g => ({ 
+                    "CaseTimerId": g.key, 
+                    "CaseTimerSnapshot": maxBy(g.values, _ => _.SnapshotTime*1) 
+                }));
+            var caseTimersToDisplay = latestSnapshotsByDistinctTimerId.map(x => x.CaseTimerSnapshot.SnapshotData.CaseTimer);
+            renderTableOfObjects(historicalCaseTimerDetailsContainer, caseTimerPropertyConfigs, caseTimersToDisplay, []);
         }
 
         function renderHistoricalDataFromDateTime(dateTime)
@@ -510,24 +629,33 @@ class CaseTimerEventViewer {
 
         }
 
-        function renderHistoricalCaseProperties(historicalCaseDataToRender)
-        {
-            removeAllChildNodesOfElement(historicalCaseDetailsContainer);
-            renderProperties(historicalCaseDetailsContainer, casePropertyConfigs, historicalCaseDataToRender);
+        // function renderHistoricalCaseProperties(historicalCaseDataToRender)
+        // {
+        //     emptyContainer(historicalCaseDetailsContainer);
+        //     renderProperties(historicalCaseDetailsContainer, casePropertyConfigs, historicalCaseDataToRender);
 
-            removeAllChildNodesOfElement(historicalSlaDetailsContainer);
-            renderProperties(historicalSlaDetailsContainer, slaPropertyConfigs, historicalCaseDataToRender.Sla);
-        }
+        //     emptyContainer(historicalSlaDetailsContainer);
+        //     renderProperties(historicalSlaDetailsContainer, slaPropertyConfigs, historicalCaseDataToRender.Sla);
+        // }
 
         // function displaySnapshotDetails(allSnapshots, selectedSnapshots)
         // {
         //     //console.log("selected CaseTimerSnapshot: ", caseTimerSnapshot);
-        //     removeAllChildNodesOfElement(selectedSnapshotContainer);
+        //     emptyContainer(selectedSnapshotContainer);
         //     renderTableOfObjects(selectedSnapshotContainer, caseTimerSnapshotPropertyConfigs, allSnapshots, selectedSnapshots);
         // }
 
-        function maxBy(arr, ps)
-        {
+        // Perform an in-place sort of array elements according to the "value" of the property returned by the specified selector.  Then, return the sorted array.
+        function sortBy(arr, ps, ascendingOrder) {
+            return arr.sort((a,b) => ps(a) < ps(b) ? -1 : ps(a) == ps(b) ? 0 : 1);
+        }
+
+        function distinctBy(arr, ps) {
+
+        }
+
+        // Return the element of the specified array whose property selector produces the maximum value.
+        function maxBy(arr, ps) {
             if (!arr || arr.length == 0) return null;
             if (arr.length == 1) return arr[0];
             var maxValue = ps(arr[0]);
@@ -540,8 +668,8 @@ class CaseTimerEventViewer {
             return arr[maxi];
         }
 
-        function minBy(arr, ps)
-        {
+        // Return the element of the specified array whose property selector produces the minimum value.
+        function minBy(arr, ps) {
             if (!arr || arr.length == 0) return null;
             if (arr.length == 1) return arr[0];
             var minValue = ps(arr[0]);
@@ -580,20 +708,28 @@ class CaseTimerEventViewer {
                 .append('th')
                 .attr('data-tablesaw-sortable-col', '')
                 .attr('data-tablesaw-priority', pc.priority === 0 ? 'persist' : pc.priority)
-                .text(pc.propertyLabel));
+                .html(pc.propertyLabel));
 
             var tbody = table.append('tbody');
 
             itemsToRender.forEach(obj => {
                 var tr = tbody.append('tr')
-                    .classed('highlighted', itemsToHighlight.findIndex(o => o == obj) != -1)
+                    .classed('row-highlight', itemsToHighlight.findIndex(o => o == obj) != -1)
                     .selectAll('td').data(propertyConfigs);
                 tr.enter().append('td')
                     .call(sel => renderPropertyValue(sel, obj));
             });
 
+
+            var highlightedElements = table.selectAll('.row-highlight').nodes();
+            if (highlightedElements && highlightedElements[0] && highlightedElements[0].scrollIntoView)
+            {
+                highlightedElements[highlightedElements.length-1].scrollIntoView({ block: "nearest" });
+                highlightedElements[0].scrollIntoView({ block: "nearest" });
+            }
+
             // Apply tablesaw features to table
-            initializeTableFeaturesAsync();
+            initializeTableFeatures();
         }
 
         function renderPropertyValue(d3SelectionBoundToPropertyConfig, objectWithProperties) {
@@ -602,7 +738,7 @@ class CaseTimerEventViewer {
                 .attr('data-title', d => d.propertyLabel)
                 .html(d => getHtmlContentForPropertyValue(d, obj))
                 .on('click', d => { 
-                    if (typeof(d.onClick) == 'function') d.onClick(obj); 
+                    if (typeof(d.onClick) == 'function') d.onClick(obj);
                 });
         }
 
@@ -627,7 +763,7 @@ class CaseTimerEventViewer {
             let labelElement = propertyWrapper
                 .append('div')
                 .attr('class', 'property-label')
-                .text(pc => pc.propertyLabel)
+                .html(pc => pc.propertyLabel)
             let valueElement = propertyWrapper
                 .append('div')
                 .attr('class', 'property-value')
@@ -646,6 +782,10 @@ class CaseTimerEventViewer {
             {
                 return "(null)";
             }
+            else if (typeof propertyValue == 'number')
+            {
+                return propertyValue;
+            }
             else if (typeof propertyValue == 'string')
             {
                 //if (isUUID(propertyValue))
@@ -663,9 +803,9 @@ class CaseTimerEventViewer {
             }
             else if(!!propertyConfig.onClick)
             {
-                return "<button class='btn btn-xs btn-primary'>View</button>";
+                return "<button class='btn btn-sm btn-primary'>View</button>";
             }
-            return '<em>(no value resolver defined)</em>'
+            return '<em>(no value resolver defined for this type)</em>'
         }
 
 
@@ -729,28 +869,35 @@ class CaseTimerEventViewer {
             });
         }
 
-
         function transformCaseDataToTimelineData(caseDataToTransform)
         {
             // create a copy of the data
             //let caseTimerArray = JSON.parse(JSON.stringify(caseDataToTransform.Timers));
 
-            let caseTimerArray = caseDataToTransform.Timers;
+            // Ensure that timers are ordered by when they were created
+            let caseTimerArray = sortBy(caseDataToTransform.Timers, _ => _.Created);  // caseDataToTransform.Timers.sort((a,b) => a.Created < b.Created ? -1 : a.Created == b.Created ? 0 : 1);
+
+            // Iterate over timers to set an ordinal ID and to sort events on each
+            var ordinalId = 1;
+            caseTimerArray.forEach(ct => {
+                ct.OrdinalId = ordinalId++;
+                sortBy(ct.Events, _ => _.EventTime);
+            });
 
             restoreReferencesInCaseTimerObjectGraph(caseTimerArray);
 
+            // Convert date strings to date objects
             normalizeProperties(caseTimerArray);
 
             // Produce D3 map of snapshot Id to snapshot (distinct values only).
             var caseTimerSnapshotsMap = d3.map( caseTimerArray.selectMany(t => t.Events).map(e => e.CaseTimerSnapshot), cts => cts.Id);
             // Make array of snapshots accessible from case data.
             caseDataToTransform.Snapshots = caseTimerSnapshotsMap.values();
-            // Replace snapshot data with distinct snapshot data (so we won't have different copies of the same snapshot floating around).
+            // Replace snapshot data with distinct snapshot objects (so we won't have different copies of the same snapshot floating around).
             caseTimerArray.selectMany(t => t.Events).forEach(cte => cte.CaseTimerSnapshot = caseTimerSnapshotsMap.get(cte.CaseTimerSnapshot.Id));
 
 
-
-            var allTimelineSeries = caseTimerArray.map(ct => 
+            var allTimelineSeriesForAllTimers = caseTimerArray.map(ct => 
             {
                 // for each case timer, this returns an array of data series, each of which can be plotted on the timeline
 
@@ -763,62 +910,33 @@ class CaseTimerEventViewer {
                         var timeOfEvents = new Date(d.key*1);
                         var eventsAtTime = d.values;
                         // Create point data structure
-                        return {
+                        var pointObj = {
                             type: TimelineChart.TYPE.POINT,
-                            customClass: 'point-white',
+                            //customClass: 'point-white',
                             label: function(){ 
-                                return eventsAtTime.length+' Event'+(eventsAtTime.length == 1 ? '' : 's')+':<br>' + 
+                                return `${eventsAtTime.length} Event${eventsAtTime.length == 1 ? '' : 's'}:<br>` + 
                                     eventsAtTime.map(e => ` - ${e.EventIdentifierString}<br>`).join('');
                             },
                             at: timeOfEvents,
                             data: d.values,
+                            ids: d.values.map(p => 'p'+p.Id),  // event guids will serve as the ids
                             onClick: function(){ 
-                                renderLatestCaseTimerDetailsTable(caseTimerArray, [ ct ]);
-                                renderEventDetailsTable(ct.Events, eventsAtTime); 
+                                timeline.highlightNodeByIds('p'+d.values[0].Id, true, 'chart-node-highlight');
+                                renderLatestCaseTimersTable(caseTimerArray, [ ct ]);
+                                renderEventsTable(ct.Events, eventsAtTime); 
                             }
                         };
+                        // Set the point reference on each event object.  (NOTE: each event should belong to 1 and only 1 point.)
+                        d.values.forEach(evt => evt.point = pointObj);
+                        return pointObj;
                     });
 
+                // Create initial series for timer which will contain points for all case timer events
                 var timerEventsSeries = {
-                    label: "Events for "+ct.CaseTimerType+": ["+ct.Name+"]",
+                    label: `${ct.OrdinalId}. Events for ${ct.CaseTimerType}: [${ct.Name}]`,
                     groupingKey: ct.Id,  // The case timer Id is a suitable grouping key
                     data: caseTimerEventPoints
                 };
-
-                // // As we group these events into points, we have to treat the SnapshotTime as an integral number of milliseconds.
-                // // Otherwise, the milliseconds will be lost if we just use the EventTime (Date), because the d3.nest.key resolver will convert the returned object into a string.
-
-                // //var caseTimerEventsBySnapshotId = (d3.nest().key(cte => cte.CaseTimerSnapshot.Id).entries(ct.Events));
-
-                // // group by snapshot id first to ensure uniqueness and then by snapshottime
-                // var caseTimerSnapshotPoints = (d3.nest().key(cts => cts.Id).entries(ct.Events.map(cte => cte.CaseTimerSnapshot)));
-                // var caseTimerSnapshotPoints = (d3.nest().key(cts => cts.SnapshotTime*1).entries(ct.Events.map(cte => cte.CaseTimerSnapshot)))
-                //     // map d3 groupings (of { key: "", values: [] }) into an array of points for the timeline
-                //     .map(d => {
-                //         var timeOfEvents = new Date(d.key*1);
-                //         var eventsAtTime = d.values;
-                //         // Create point data structure
-                //         return {
-                //             type: TimelineChart.TYPE.POINT,
-                //             customClass: 'point-white',
-                //             label: function(){ 
-                //                 return eventsAtTime.length+' Event'+(eventsAtTime.length == 1 ? '' : 's')+':<br>' + 
-                //                     eventsAtTime.map(e => ` - ${e.EventIdentifierString}<br>`).join('');
-                //             },
-                //             at: timeOfEvents,
-                //             data: d.values,
-                //             onClick: function(){ 
-                //                 renderLatestCaseTimerDetailsTable(caseTimerArray, [ ct ]);
-                //                 renderEventDetailsTable(ct.Events, eventsAtTime); 
-                //             }
-                //         };
-                //     });
-
-                // var timerSnapshotsSeries = {
-                //     label: "Snapshots for ["+ct.Name+"]",
-                //     groupingKey: ct.Id,  // The case timer Id is a suitable grouping key
-                //     data: caseTimerSnapshotPoints
-                // };
 
                 var now = new Date();
                 var intervalConfigs = [
@@ -909,43 +1027,48 @@ class CaseTimerEventViewer {
                             let nextEvt = eventsOfInterest.length > i + 1 ? eventsOfInterest[i + 1] : null;
                             let ic = intervalConfig;
 
-                            // If following item exist in array, create an interval with this one and that one
+                            // Create and add interval object
+                            var intervalObj = {
+                                type: TimelineChart.TYPE.INTERVAL,
+                                intervalType: ic.intervalType,
+                                customClass: ic.customClass,
+                                label: ic.intervalLabelFn(curEvt),
+                                from: new Date(curEvt.EventTime)
+                            };
                             if (nextEvt != null)
                             {
-                                intervals.push({
-                                    type: TimelineChart.TYPE.INTERVAL,
-                                    intervalType: ic.intervalType,
-                                    customClass: ic.customClass,
-                                    label: ic.intervalLabelFn(curEvt),
-                                    from: new Date(curEvt.EventTime),
+                                // if both endpoints of interval are known
+                                intervalObj = Object.assign({
                                     to: new Date(nextEvt.EventTime),
                                     data: [curEvt, nextEvt],
+                                    ids: ['i'+curEvt.Id, 'i'+nextEvt.Id],  // starting/ending event guids will serve as the ids
                                     onClick: function(){ 
-                                        renderLatestCaseTimerDetailsTable(caseTimerArray, [ ct ]);
-                                        renderEventDetailsTable(ct.Events, [curEvt, nextEvt]);
+                                        timeline.highlightNodeByIds('i'+curEvt.Id, true, 'chart-node-highlight');
+                                        renderLatestCaseTimersTable(caseTimerArray, [ ct ]);
+                                        renderEventsTable(ct.Events, [curEvt, nextEvt]);
                                     } 
-                                });
+                                }, intervalObj);
+                                nextEvt.interval = intervalObj;
                             }
-                            // ...otherwise, create the final interval with this one and the current time as a tentative stop time
                             else
                             {
-                                intervals.push({
-                                    type: TimelineChart.TYPE.INTERVAL,
-                                    intervalType: ic.intervalType,
-                                    customClass: ic.customClass,
-                                    label: ic.intervalLabelFn(curEvt),
-                                    from: new Date(curEvt.EventTime),
+                                // if only the starting time is known, the end time will be "now"
+                                intervalObj = Object.assign({
                                     to: now,
                                     data: [curEvt],
-                                    onClick: function(){ 
-                                        renderLatestCaseTimerDetailsTable(caseTimerArray, [ ct ]);
-                                        renderEventDetailsTable(ct.Events, [curEvt]);
+                                    ids: ['i'+curEvt.Id ],  // starting event guid will serve as the id
+                                    onClick: function(){
+                                        timeline.highlightNodeByIds('i'+curEvt.Id, true, 'chart-node-highlight');
+                                        renderLatestCaseTimersTable(caseTimerArray, [ ct ]);
+                                        renderEventsTable(ct.Events, [curEvt]);
                                     } 
-                                });
+                                }, intervalObj);
                             }
+                            curEvt.interval = intervalObj; // Set the interval reference on the event object.  (NOTE: no event should be a member of > 1 interval.)
+                            intervals.push(intervalObj);
                         }
 
-                        // new series
+                        // return a new series
                         return {
                             label: intervalConfig.groupLabelFn(intervalGroup.values[0]),
                             groupingKey: ct.Id,  // The case timer Id is a suitable grouping key
@@ -954,6 +1077,27 @@ class CaseTimerEventViewer {
                     });
                 //console.log("timerIntervalSeriesArray: ", timerIntervalSeriesArray);
                 // end grouping of intervals
+
+                var getIntervalPointAvgDate = p => p.type === TimelineChart.TYPE.POINT ? p.at : new Date(p.from * 1 + (p.to - p.from)/2);
+
+                // Sort the events by a combination of their date and the intervals they're part of
+                ct.Events.sort((a,b) => {
+                    if (a.EventTime < b.EventTime) return -2;
+                    if (a.EventTime > b.EventTime) return 2;
+                    
+                    var aAvgDate = getIntervalPointAvgDate(a.interval || a.point);
+                    var bAvgDate = getIntervalPointAvgDate(b.interval || b.point);
+
+                    if (aAvgDate < bAvgDate) return -1;
+                    if (aAvgDate > bAvgDate) return 1;
+
+                    return 0;
+                });
+                // Number the events
+                var ordinalId = 1;
+                ct.Events.forEach(evt => { evt.OrdinalId = ordinalId++; });
+                // // Sort by the number
+                // sortBy(ct.Events, evt => evt.OrdinalId);
 
                 var allSeriesForTimer = [ timerEventsSeries ].concat(timerIntervalSeriesArray);
 
@@ -965,19 +1109,19 @@ class CaseTimerEventViewer {
             // At this point, there will probably be > 1 series associated with each timer.
             // We want to provide some sort of visual grouping mechanism so that all series associated with the same case timer can be visually grouped.
             // Transform the group key to a 0-based index.
-            var newGroupingKey = 0;
+            var newGroupNumber = 0;
             var lastGroupKey = "----------------";
-            allTimelineSeries.forEach((x) => {
+            allTimelineSeriesForAllTimers.forEach((x) => {
                 if (lastGroupKey != x.groupingKey)
                 {
                     lastGroupKey = x.groupingKey;
-                    newGroupingKey++;
+                    newGroupNumber++;
                 }
-                x.groupingKey = newGroupingKey;
+                x.groupingKey = newGroupNumber;
             });
 
-            //console.log("TimelineSeries: ", allTimelineSeries);
-            return allTimelineSeries;
+            //console.log("TimelineSeries: ", allTimelineSeriesForAllTimers);
+            return allTimelineSeriesForAllTimers;
         }
 
     }
