@@ -80,11 +80,6 @@ class TimelineChart {
         minDt = new Date(minDt.getTime() - (dateDelta * zoomOutPct));
         maxDt = new Date(maxDt.getTime() + (dateDelta * zoomOutPct));
 
-        // let resetBtn = d3.select(element)
-        //     .append('button')
-        //     .html('Reset View')
-        //     .on('click', d => self.resetTransform());
-
         let timelineContainer = d3.select(element)
             .append('div')
             .classed('timeline-chart', true);
@@ -187,9 +182,6 @@ class TimelineChart {
                 .attr("y2", height);
         }
 
-        var c20 = d3.schemeCategory20;
-        var colorScale10 = [];
-        d3.schemeCategory20.forEach((o,i) => { if(i%2==1) colorScale10.push(o); })
         let seriesBackground = svg_g.selectAll('.series-background')
             .data(timelineData)
             .enter()
@@ -200,7 +192,9 @@ class TimelineChart {
             .attr('width', width)
             .attr('height', groupHeight)
             .style('fill', (d, i) => {
-                return d3.schemeCategory20[((d.groupingKey || i)%10)*2+1];
+                // For numeric values of grouping key, use them.  Otherwise, use the supplied index (i).
+                var index = Math.abs(Math.floor((d.groupingKey == d.groupingKey*1 ? d.groupingKey : i)%10)*2-1);
+                return d3.schemeCategory20[index];
             });
 
         // horizontal lines between groups.  (This used to use the 'group-section' class, but is now using the 'series' terminology.)
@@ -303,8 +297,6 @@ class TimelineChart {
         let intervals = groupIntervalItems
             .append('rect')
             .attr('class', curry(addClasses, 'interval'))
-            //.attr('class', withCustomClass('interval'))
-            //.attr('class', addCustomClassesForIds)
             .attr('width', (d) => Math.max(options.intervalMinWidth, xTimeScaleForContent(d.to) - xTimeScaleForContent(d.from)))
             .attr('height', intervalBarHeight)
             .attr('y', intervalBarMargin)
@@ -315,10 +307,7 @@ class TimelineChart {
         let intervalTexts = groupIntervalItems
             .append('text')
             .text(d => d.label || '')  //  (typeof(d.label) === 'function' ? d.label(d) : d.label) || '')
-            //.attr('fill', 'white')
             .attr('class', curry(addClasses, 'interval-text'))
-            //.attr('class', withCustomClass('interval-text'))
-            //.attr('class', addCustomClassesForIds)
             .attr('y', (groupHeight / 2) + 5)
             .attr('x', (d) => xTimeScaleForContent(d.from));
 
@@ -338,8 +327,6 @@ class TimelineChart {
         let dots = groupDotItems
             .append('circle')
             .attr('class', curry(addClasses, 'dot'))
-            //.attr('class', withCustomClass('dot'))
-            //.attr('class', addCustomClassesForIds)
             .attr('cx', d => xTimeScaleForContent(d.at))
             .attr('cy', groupHeight / 2)
             .attr('r', 7)
@@ -347,10 +334,27 @@ class TimelineChart {
 
         if (options.tip) {
             if (d3.tip) {
-                let tip = d3.tip().attr('class', 'd3-tip').html(options.tip);
+                let tip = d3.tip().attr('class', 'd3-tip').html(options.tip).offset([-15, 0]);;
                 svg_g.call(tip);
                 dots.on('mouseover', tip.show).on('mouseout', tip.hide);
-                intervals.on('mouseover', tip.show).on('mouseout', tip.hide);
+                intervals.on('mouseover', showIntervalTip).on('mouseout', tip.hide);
+
+                function showIntervalTip(d, i){
+                    var x = d3.event.x, y = d3.event.y;
+                    var d3_event_x = d3.event.x;
+
+                    tip.show(d, i);
+
+                    function updateWidth() {
+                        console.log([ parseFloat(tip.style('width')), parseFloat(d3.select('.d3-tip.n').style('width')), d3.select('.d3-tip.n').node().clientWidth]);
+                        var tipWidth = parseFloat(tip.style('width'));
+                        console.log('tip width: ', tipWidth);
+                        tip.style('left', d3_event_x - (tipWidth/2) + 'px');
+                    }
+
+                    updateWidth();
+                    setTimeout(updateWidth, 1);
+                }
             } else {
                 console.error('Please make sure you have d3.tip included as dependency (https://github.com/Caged/d3-tip)');
             }
@@ -415,6 +419,7 @@ class TimelineChart {
             }
         }
         
+        // Add to (this) selection the provided defaultClass and any customClass specified within the data.
         function addClasses(defaultClass, data) {
             //console.log('this: ', this, ' arguments: ', arguments);
             var classes = [ defaultClass ];
@@ -422,15 +427,6 @@ class TimelineChart {
             var idClasses = (data.ids || []).map(id => dataIdClassPrefix+id);
             return classes.concat(idClasses).join(' ');
         }
-
-        // function withCustomClass(defaultClass) {
-        //     return d => d.customClass ? [d.customClass, defaultClass].join(' ') : defaultClass
-        // }
-
-        // function addCustomClassesForIds(data) {
-        //     var idClasses = (data.ids || []).map(id => "_id_"+id);
-        //     return idClasses.join(' ');
-        // }
 
         function zoomed() {
             if (self.onVizChangeFn && d3.event) {
@@ -445,38 +441,23 @@ class TimelineChart {
                 updateNowMarker();
             }
 
-            //console.log("BEFORE  D:", xTimeScaleForContent.domain().map(x => x*1.0/25428046), "R:", xTimeScaleForContent.range());
-
-            var ___dummy___ = zoom;  // include zoom in closure
+            var ___dummy___ = [ zoom ];  // include in closure
             
-            //var xTimeScaleForContent = xTimeScaleOriginal;
             if (d3.event && d3.event.transform) {
 console.log(d3.event.transform);
-
                 // create new scale ojects based on event
                 xTimeScaleForContent = d3.event.transform.rescaleX(xTimeScaleOriginal);
-
-                // update ...
-                // svg_g.attr(
-                //     "transform",
-                //     'translate('+d3.event.transform.x+',0) scale('+d3.event.transform.k+',1)'
-                // );
             }
             else console.log('d3.event.transform is empty');
 
             // update axes
             xAxisScaled = xAxis.scale(xTimeScaleForContent);
 
-        //console.log("AFTER  D:", xTimeScaleForContent.domain().map(x => x*1.0/25428046), "R:", xTimeScaleForContent.range());
-
-            // update axes
+            // redraw axis
             gX.call(xAxisScaled);
-            // Draw X axis
-            //svg_g.select('.x.axis').call(xAxis);
-
+            // redraw points and intervals
             svg_g.selectAll('circle.dot').attr('cx', d => xTimeScaleForContent(d.at));
             svg_g.selectAll('rect.interval').attr('x', d => xTimeScaleForContent(d.from)).attr('width', d => Math.max(options.intervalMinWidth, xTimeScaleForContent(d.to) - xTimeScaleForContent(d.from)));
-
             svg_g.selectAll('.interval-text').attr('x', function(d) {
                     let positionData = getTextPositionData.call(this, d);
                     if ((positionData.upToPosition - groupWidth - 10) < positionData.textWidth) {
@@ -537,6 +518,7 @@ console.log(d3.event.transform);
             return p.type === TimelineChart.TYPE.POINT ? p.at : p.to;
         };
     
+        // whether transitions should be animated by default
         var animateTransitions = true;
         self.animateTransitions = function(value) {
             if (value === undefined)
@@ -585,7 +567,10 @@ console.log(d3.event.transform);
         }
         self.translateToDate = translateToDate;
 
-        self.highlightNodeByIds = function(idOrIdArray, scrollIntoView, highlightCssClassName) {
+        // Given one or more [string] ids, do one or both of the following:
+        //  - move the elements into view (via zooming and panning)
+        //  - apply the specified CSS class to the elements
+        self.highlightNodeByIds = function(idOrIdArray, moveIntoView, highlightCssClassName) {
             var ___dummy___ = [zoom, xTimeScaleForContent];  // include zoom in closure
             var idArray = typeof(idOrIdArray) === "string" ?  [idOrIdArray] : idOrIdArray;
             if (idArray.constructor !== [].constructor) return { data: [] };
@@ -605,16 +590,14 @@ console.log(d3.event.transform);
             var items = sel.data();
             var itemToUse = items.find(item => item.type == TimelineChart.TYPE.POINT) || items[0];
             // optionally scroll the node into view
-            if (!!scrollIntoView) {
+            if (!!moveIntoView) {
                 var itemTime = self.getItemAvgDate(itemToUse);
                 var rangeValue = xTimeScaleOriginal(itemTime);
                 var currentTransform = d3.zoomTransform(svg_g.node());
-                var newTransform = d3.zoomIdentity.translate(-400 + 596 - rangeValue).scale(currentTransform.k);
 
                 console.log('target range value: ', rangeValue); //, 'scaled: ', rangeValue*currentTransform.k);
                 console.log('current transform: ', currentTransform);
                 //console.log('current transform.translate(100,0): ', currentTransform.translate(100, 0), currentTransform.x+currentTransform.k*100);
-                console.log('estimated transform: ', newTransform);
                 console.log('original scale:  range: ', xTimeScaleOriginal.range(), 'domain: ', xTimeScaleOriginal.domain())
                 console.log('current scale:  range: ', xTimeScaleForContent.range(), 'domain: ', xTimeScaleForContent.domain())
 
@@ -629,17 +612,13 @@ console.log(d3.event.transform);
                         console.log('date: ', itemTime, 'x: ', timeCoord);
                         console.log('nearestDate: ', itemTime, 'x: ', nearestTimeCoord);
                         console.log('k current: ', currentTransform.k, 'new: ', kNew);
-                        // Perform scale transformation
+                        // Perform scale transformation instantly
                         setZoomScale(kNew, false);
                     }
                 }
 
-                // Perform translation transformation
+                // Perform translation transformation with animation
                 translateToDate(itemTime, true);
-
-                //svg_g.call(zoom.transform, newTransform);
-                //svg_g.call(zoom.translateTo, rangeValue);
-                //console.log('ACTUAL new transform: ', d3.zoomTransform(svg_g.node()));
             }
 
             return {
@@ -651,8 +630,8 @@ console.log(d3.event.transform);
             svg_g.call(zoom.scaleTo, k);
         }
 
-        console.log("data successfully bound to timeline chart: ", timelineData);
-        console.log("flattened data: ", allElements);
+        console.log("timeline data successfully bound to chart: ", timelineData);
+        console.log("timeline data flattened: ", allElements);
     }
     extendOptions(ext = {}) {
         let defaultOptions = {
@@ -661,8 +640,8 @@ console.log(d3.event.transform);
             textTruncateThreshold: 30,
             enableLiveTimer: false,
             timerTickInterval: 1000,
-            groupHeight: 40,
-            groupWidth: 300
+            groupHeight: 40, // px
+            groupWidth: 300 // px
         };
         Object.keys(ext).map(k => defaultOptions[k] = ext[k]);
         return defaultOptions;
@@ -704,15 +683,6 @@ console.log(d3.event.transform);
         else if (laterStartingItem == null) result.nearest = result.earlier;
         else result.nearest = result.earlier.interval < result.later.interval ? result.earlier : result.later;
         return result;
-        // if (!item.prevItem) {
-        //     if (!item.nextItem) return null;
-        //     return item.nextItem.from;
-        // }
-        // if (!item.nextItem) return item.prevItem.to;
-        // // both previous and next intervals exist
-        // var prevInterval = item.from - item.prevItem.to;
-        // var nextInterval = item.nextItem.from - item.to;
-        // return prevInterval < nextInterval ? item.prevItem.to : item.nextItem.from;
     }
     onVizChange(fn) {
         this.onVizChangeFn = fn;

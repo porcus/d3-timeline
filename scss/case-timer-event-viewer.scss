@@ -53,7 +53,7 @@ body {
 
 // Case Timer Event Styles
 .scrollable-container {
-    border: solid 1px #444;
+    border: solid 1px #ccc;
     overflow: scroll;
     min-height: 50px;
     max-height: 500px;
@@ -179,11 +179,18 @@ body {
 
 // Override d3 tip styling
 .d3-tip {
-    font-weight: normal;
     border-radius: 8px;
-    line-height: 1.4;
-    // background: white;
-    // color: black;
+    width: 500px;
+    line-height: 1.3;
+
+    .tip-heading {
+        color: rgb(103, 174, 255);
+        font-weight: bold;
+    }
+    .tip-body {
+        font-size: 80%;
+        font-weight: normal;
+    }
 }
 
 
