@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Purge Requests</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" href="../dist/purge-console.css" />
+
+    <script src="https://cdn.jsdelivr.net/npm/tablesaw@3.0.9/dist/tablesaw.min.js"></script>
+
+    <script data-require="d3@4.0.0" data-semver="4.0.0" src="https://d3js.org/d3.v4.min.js"></script>
+
+    <script src="../dist/purge-console.js"></script>
+</head>
+
+<body>
+
+    <button data-filename="purge-data-1.json">Load Purge Data 1</button>
+
+    <div id='main-container'></div>
+
+    <script id="code">
+        var purgeConsole = null;
+        (function initializePrototypeTimeline() {
+            purgeConsole = new PurgeConsole(document.getElementById('main-container'), null);
+
+            d3.selectAll('button[data-filename]').nodes().forEach((el,i) => { 
+                var btn = d3.select(el);
+                btn.on('click', _ => { d3.json(btn.attr('data-filename'), data => purgeConsole.updateData(data) ) });
+            });
+        })();
+    </script>
+
+</body>
+</html>

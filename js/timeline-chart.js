@@ -47,6 +47,8 @@ Provided data should match the following grammar/rules:
 */
 class TimelineChart {
     constructor(element, timelineData, opts) {
+        if (!timelineData || timelineData.constructor != [].constructor || !timelineData.length) return null;
+
         let self = this;
 
         element.classList.add('timeline-chart-component');
@@ -239,7 +241,7 @@ class TimelineChart {
         function handleWidthChange() {
             var newWidth = timelineContainerElement.clientWidth - margin.left - margin.right - 2;
 
-            if (newWidth != width)
+            if (newWidth > 0 && newWidth != width)
             {
                 width = newWidth;
                 svg.attr("width", width) ;
@@ -332,32 +334,127 @@ class TimelineChart {
             .attr('r', 7)
             .on('click', (d) => { !d.onClick || d.onClick(d); });
 
-        if (options.tip) {
-            if (d3.tip) {
-                let tip = d3.tip().attr('class', 'd3-tip').html(options.tip).offset([-15, 0]);;
-                svg_g.call(tip);
-                dots.on('mouseover', tip.show).on('mouseout', tip.hide);
-                intervals.on('mouseover', showIntervalTip).on('mouseout', tip.hide);
+        // If set, options.tipContentGenerator should have the following form: function(timelineObjectForWhichToRenderTipContent)
+        if (options.tipContentGenerator) {
+            //if (window.Tooltip)
+            //{
+                let tip = function(){
+                    // The container element will hold the placeholder element and the tooltip element
+                    // The reason we need this is because of how tooltip.js resolves the tooltip-inner element when updating the tooltip "title".
+                    var container = document.createElement('div');
+                    document.body.appendChild(container);
 
-                function showIntervalTip(d, i){
-                    var x = d3.event.x, y = d3.event.y;
-                    var d3_event_x = d3.event.x;
+                    // The placeholder element will 
+                    var placeholderEl = d3.select(document.createElement('div'));
+                    placeholderEl
+                        .style('position', 'absolute').style('top', 0)
+                        .style('opacity', 0)
+                        //.style('background-color', '#0000ff7f')
+                        .style('pointer-events', 'none').style('box-sizing', 'border-box');
+                    container.appendChild(placeholderEl.node());
 
-                    tip.show(d, i);
-
-                    function updateWidth() {
-                        console.log([ parseFloat(tip.style('width')), parseFloat(d3.select('.d3-tip.n').style('width')), d3.select('.d3-tip.n').node().clientWidth]);
-                        var tipWidth = parseFloat(tip.style('width'));
-                        console.log('tip width: ', tipWidth);
-                        tip.style('left', d3_event_x - (tipWidth/2) + 'px');
+                    var _tooltip = null;
+                    function getToolTip() {
+                        if (_tooltip == null)
+                        _tooltip = new Tooltip(placeholderEl.node(), {
+                                placement: 'top', 
+                                title: 'initial value', 
+                                html: true,
+                                // template: '<div class="tooltip bs-tooltip-top" role="tooltip">' +
+                                //     '<div class="tooltip-arrow arrow"></div>' +
+                                //     '<div class="tooltip-inner"></div>' +
+                                //     '</div>',
+                                popperOptions: {
+                                    onCreate: function(p) { p.instance.popper.classList.add('show'); },
+                                    modifiers: {
+                                        flip: {
+                                            behavior: ['top', 'bottom', 'left', 'right']
+                                        }
+                                        // preventOverflow: {
+                                        //     boundariesElement: 
+                                        // }
+                                    }
+                                }
+                            });
+                        return _tooltip;
                     }
 
-                    updateWidth();
-                    setTimeout(updateWidth, 1);
-                }
-            } else {
-                console.error('Please make sure you have d3.tip included as dependency (https://github.com/Caged/d3-tip)');
-            }
+                    function result(){
+                        console.log('calling tip fn');
+                    }
+
+                    var tipContentGenerator;
+                    result.html = function(val){
+                        tipContentGenerator = val;
+                    };
+
+                    result.show = function(d){
+                        // update position and size of placeholder element to match the target element
+                        var rect = this.getBoundingClientRect();  // bounding client rect of target element
+                        var cliprect = interactionRect.node().getBoundingClientRect();  // bounding client rect of element to clip the target element's coords to
+
+                        var top = rect.top + window.scrollY;
+                        var left = Math.max(rect.left,cliprect.left) + window.scrollX;
+                        var right = Math.min(rect.right,cliprect.right) + window.scrollX;
+                        var bottom = rect.bottom + window.scrollY;
+                        var height = Math.min(bottom-top, rect.height);
+                        var width = Math.min(right-left, rect.width);
+
+                        // console.log('top', rect.top, cliprect.top);
+                        // console.log('left', rect.left, cliprect.left);
+                        // console.log('right', rect.right, cliprect.right);
+                        // console.log('bottom', rect.bottom, cliprect.bottom);
+                        placeholderEl
+                            .style('top', top+'px')
+                            .style('left', left+'px')
+                            .style('height', height+'px')
+                            .style('width', width+'px');
+                        // update the content of the tooltip to match the data
+                        var html = tipContentGenerator(d);
+                        var tt = getToolTip();
+                        tt.updateTitleContent(html);
+                        // show
+                        tt.show();
+                    };
+
+                    result.hide = function(){
+                        getToolTip().hide();
+                    };
+
+                    return result;
+                }();
+
+
+                tip.html(options.tipContentGenerator);
+                dots.on('mouseover', tip.show).on('mouseout', tip.hide);
+                intervals.on('mouseover', tip.show).on('mouseout', tip.hide);
+            //}
+
+            // if (d3.tip) {
+            //     let tip = d3.tip().attr('class', 'd3-tip').html(options.tipContentGenerator).offset([-15, 0]);;
+            //     svg_g.call(tip);
+            //     dots.on('mouseover', tip.show); //.on('mouseout', tip.hide);
+            //     intervals.on('mouseover', showIntervalTip).on('mouseout', tip.hide);
+
+            //     function showIntervalTip(d, i){
+            //         var x = d3.event.x, y = d3.event.y;
+            //         var d3_event_x = d3.event.x;
+
+            //         tip.show(d, i);
+
+            //         function updateWidth() {
+            //             //console.log([ parseFloat(tip.style('width')), parseFloat(d3.select('.d3-tip.n').style('width')), d3.select('.d3-tip.n').node().clientWidth]);
+            //             var tipWidth = parseFloat(tip.style('width'));
+            //             //console.log('tip width: ', tipWidth);
+            //             tip.style('left', d3_event_x - (tipWidth/2) + 'px');
+            //         }
+
+            //         updateWidth();
+            //         setTimeout(updateWidth, 1);
+            //     }
+            // } else {
+            //     console.error('Please make sure you have d3.tip included as dependency (https://github.com/Caged/d3-tip)');
+            // }
         }
 
         zoomed();
@@ -444,7 +541,7 @@ class TimelineChart {
             var ___dummy___ = [ zoom ];  // include in closure
             
             if (d3.event && d3.event.transform) {
-console.log(d3.event.transform);
+//console.log(d3.event.transform);  // includes k(scale), x, and y
                 // create new scale ojects based on event
                 xTimeScaleForContent = d3.event.transform.rescaleX(xTimeScaleOriginal);
             }
@@ -579,9 +676,13 @@ console.log(d3.event.transform);
             d3.selectAll('.'+highlightCssClassName).classed(highlightCssClassName, false);
 
             var selector = idArray.map(id => "."+dataIdClassPrefix+id).join(',');
+
+            // Bail out if no selector is available
+            if (!selector) return { data: [] };
+
             var sel = d3.selectAll(selector);
 
-            // if selector doesn't match an element...
+            // Bail out if selector doesn't match an element
             if (sel.nodes().length == 0) return { data: [] };
 
             // Highlight new node
@@ -591,15 +692,18 @@ console.log(d3.event.transform);
             var itemToUse = items.find(item => item.type == TimelineChart.TYPE.POINT) || items[0];
             // optionally scroll the node into view
             if (!!moveIntoView) {
+                // TODO:  when an interval spans the entire view, using the itemTime returned for it will likely change the view considerably. 
+                // Instead, find a better way to deal witht this, possibly using the time associated with the point clicked.  
+                // To do this, consider allowing an optional time to be provided to this method which will serve as the itemToUse/itemTime around which the view will be centered.
                 var itemTime = self.getItemAvgDate(itemToUse);
                 var rangeValue = xTimeScaleOriginal(itemTime);
                 var currentTransform = d3.zoomTransform(svg_g.node());
 
-                console.log('target range value: ', rangeValue); //, 'scaled: ', rangeValue*currentTransform.k);
-                console.log('current transform: ', currentTransform);
-                //console.log('current transform.translate(100,0): ', currentTransform.translate(100, 0), currentTransform.x+currentTransform.k*100);
-                console.log('original scale:  range: ', xTimeScaleOriginal.range(), 'domain: ', xTimeScaleOriginal.domain())
-                console.log('current scale:  range: ', xTimeScaleForContent.range(), 'domain: ', xTimeScaleForContent.domain())
+                // leave log statements in here for now, for troubleshooting purposes
+                //console.log('target range value: ', rangeValue);
+                //console.log('current transform: ', currentTransform);
+                //console.log('original scale:  range: ', xTimeScaleOriginal.range(), 'domain: ', xTimeScaleOriginal.domain())
+                //console.log('current scale:  range: ', xTimeScaleForContent.range(), 'domain: ', xTimeScaleForContent.domain())
 
                 var neighborInfo = self.getSeriesNeighbors(itemToUse);
                 if (neighborInfo.nearest != null) {
@@ -607,11 +711,11 @@ console.log(d3.event.transform);
                     var nearestTimeCoord = xTimeScaleForContent(neighborInfo.nearest.time);
                     var timeDeltaInMs = Math.abs(timeCoord - nearestTimeCoord);
                     var kNew = (20 / timeDeltaInMs) * currentTransform.k;
-                    console.log('time delta (ms): ', timeDeltaInMs, 'new k: ', kNew);
+                    //console.log('time delta (ms): ', timeDeltaInMs, 'new k: ', kNew);
                     if (kNew > currentTransform.k) {
-                        console.log('date: ', itemTime, 'x: ', timeCoord);
-                        console.log('nearestDate: ', itemTime, 'x: ', nearestTimeCoord);
-                        console.log('k current: ', currentTransform.k, 'new: ', kNew);
+                        //console.log('date: ', itemTime, 'x: ', timeCoord);
+                        //console.log('nearestDate: ', itemTime, 'x: ', nearestTimeCoord);
+                        //console.log('k current: ', currentTransform.k, 'new: ', kNew);
                         // Perform scale transformation instantly
                         setZoomScale(kNew, false);
                     }
@@ -636,7 +740,7 @@ console.log(d3.event.transform);
     extendOptions(ext = {}) {
         let defaultOptions = {
             intervalMinWidth: 8, // px
-            tip: undefined,
+            tipContentGenerator: undefined,
             textTruncateThreshold: 30,
             enableLiveTimer: false,
             timerTickInterval: 1000,

@@ -115,8 +115,11 @@ body {
         //     fill: white;
         //     stroke: black;
         // }
-        &.chart-node-highlight {
+        &.chart-node-highlight-primary {
             fill: #0f0 !important;
+        }
+        &.chart-node-highlight-secondary {
+            fill: #ff0 !important;
         }
     }
 
@@ -127,6 +130,9 @@ body {
         fill-opacity: 0.7;
         &.chart-node-highlight {
             fill: #0f0 !important;
+        }
+        &.chart-node-highlight {
+            fill: #ff0 !important;
         }
     }
     .interval-text {
@@ -190,10 +196,53 @@ body {
     .tip-body {
         font-size: 80%;
         font-weight: normal;
+        text-align: left;
     }
 }
 
+// Override tooltip styling
+$tip-color: rgba(0, 0, 0, 0.9);
+.tooltip-inner {
+    background-color: $tip-color;
+    padding: .5em 1em;
+    max-width: 600px;
 
+    .tip-heading {
+        color: rgb(103, 174, 255);
+        font-weight: bold;
+    }
+    .tip-body {
+        font-size: 80%;
+        font-weight: normal;
+        text-align: left;
+    }
+}
+.tooltip-arrow {
+    border-color: $tip-color;
+}
+
+
+
+// .tooltip.bs-tooltip-right .arrow:before {
+//     border-right-color: #00cc00 !important;
+// }
+// .tooltip.bs-tooltip-left .arrow:before {
+//     border-right-color: #00cc00 !important;
+// }
+// .tooltip.bs-tooltip-bottom .arrow:before {
+//     border-right-color: #00cc00 !important;
+// }
+// .tooltip.bs-tooltip-top .arrow:before {
+//     border-right-color: #00cc00 !important;
+// }
+
+
+// Fix for conflict between bootstrap/tablesaw "btn-grp" class
+.tablesaw-bar {
+    .btn-group {
+        display: inline-block;
+    }
+}
 
 @mixin responsive-table {
     /* Force table to not be like tables anymore */

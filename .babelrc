@@ -2,6 +2,7 @@
     "presets": ["es2015"],
     "plugins": ["transform-es2015-modules-umd", ["rename-umd-globals", {
       "timelineChart": "TimelineChart",
-      "caseTimerEventViewer": "CaseTimerEventViewer"
+      "caseTimerEventViewer": "CaseTimerEventViewer",
+      "purgeConsole": "PurgeConsole"
     }]]
 }

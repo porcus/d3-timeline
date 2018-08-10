@@ -1,0 +1,71 @@
+body {
+    font-family: 'Roboto', sans-serif;
+    color: #333;
+}
+
+#case-timer-event-browser-container {
+}
+
+.bottom-border {
+    border-bottom: solid #333 .05em;
+}
+
+.indent {
+    margin-left: 1.5em;
+}
+
+.property-card-flex-layout {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+// Case Timer Event Styles
+.scrollable-container {
+    border: solid 1px #ccc;
+
+    table {
+        margin-bottom: 0;
+        tbody {
+            tr {
+                border-top: 1px solid #ddd;
+            }
+            td {
+                padding: .3em;
+                line-height: 1.1em;
+            }
+        }
+    }
+}
+
+// table row highlight
+.row-highlight {
+    //background: #d5eafd;
+    background: #0f0;
+}
+
+.property-label-and-value {
+    margin: 2px;
+    border: 1px solid black;
+    display: block;
+    padding: 1px;
+
+    .property-label {
+        font-weight: bold;
+        margin: 3px;
+        display: inline;
+    }
+    .property-value {
+        margin: 3px;
+        display: inline;
+    }    
+}
+
+
+//***************************************************************************
+
+// Fix for conflict between bootstrap/tablesaw "btn-grp" class
+.tablesaw-bar {
+    .btn-group {
+        display: inline-block;
+    }
+}

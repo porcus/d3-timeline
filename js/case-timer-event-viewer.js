@@ -3,7 +3,7 @@ class CaseTimerEventViewer {
         let self = this;
 
         // We'll use this several times hereafter
-        Array.prototype.selectMany = function(memberArraySelectorFn){ return this.map(memberArraySelectorFn).reduce((a,b) => a.concat(b)); };
+        Array.prototype.selectMany = function(memberArraySelectorFn){ return !this.length ? [] : this.map(memberArraySelectorFn).reduce((a,b) => a.concat(b)); };
 
         // Extend the d3 selection prototype to include some additional functions
 
@@ -27,22 +27,51 @@ class CaseTimerEventViewer {
             //d3.selection.enter.prototype.visible = 
             function(value) { if (value === undefined) return this.style('display') !== 'none'; this.style('display', !!value ? null : 'none'); };
 
-        function appendHtmlNodesToHead(headHTMLString) {
-            var targetNode = d3.select('head').node();
-            var nodesToImport = new DOMParser().parseFromString(headHTMLString, 'text/html').head.childNodes;
-            for(var i = 0; i < nodesToImport.length; i++) {
-                targetNode.appendChild(document.importNode(nodesToImport[i], true));
-            }
+
+        function loadScriptFile(src) {
+            var element = document.createElement("script");
+            element.src = src;
+            document.body.appendChild(element);
+        }
+        function loadCssFile(src) {
+            var element = document.createElement("link");
+            element.rel = "stylesheet";
+            element.type = "text/css";
+            element.href = src;
+            document.head.appendChild(element);
+        }
+        function executeFunctionWhenPredicateIsSatisfied(boolPredicate, fn, initialWaitInMs, subsequentWaitInMs) {
+            initialWaitInMs = initialWaitInMs || 100;
+            subsequentWaitInMs = subsequentWaitInMs || 100;
+            var task = function() {
+                if (!!boolPredicate()) fn();
+                else setTimeout(task, subsequentWaitInMs);
+            };
+            setTimeout(task, initialWaitInMs);
         }
 
-        // Add style and script dependencies needed by this component
-        appendHtmlNodesToHead([
-            '<link href="https://cdnjs.cloudflare.com/ajax/libs/jsoneditor/5.13.3/jsoneditor.css" rel="stylesheet" type="text/css">',
-            '<script src="https://cdnjs.cloudflare.com/ajax/libs/jsoneditor/5.13.3/jsoneditor-minimalist.js"></script>',
-            '<link href="https://cdn.jsdelivr.net/npm/tablesaw@3.0.9/dist/tablesaw.min.css" rel="stylesheet" type="text/css">',
-            //'<script src="https://cdn.jsdelivr.net/npm/tablesaw@3.0.9/dist/tablesaw.min.js"></script>'
-            //'<script src="tablesaw.min.js"></script>'
-            ].join('\n'));
+        // Popper
+        loadScriptFile("https://unpkg.com/popper.js");
+        //loadScriptFile("https://unpkg.com/popper.js/dist/umd/popper.min.js");
+        //"https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js");
+
+        // Tooltip (by Popper)
+        executeFunctionWhenPredicateIsSatisfied(() => window.Popper, () => {
+            loadScriptFile("https://unpkg.com/tooltip.js");
+        });
+        //loadScriptFile("https://unpkg.com/tooltip.js/dist/umd/tooltip.min.js");
+
+        // JSONEditor
+        loadScriptFile("https://cdnjs.cloudflare.com/ajax/libs/jsoneditor/5.13.3/jsoneditor-minimalist.js");
+        loadCssFile("https://cdnjs.cloudflare.com/ajax/libs/jsoneditor/5.13.3/jsoneditor.css");
+
+        // Tablesaw
+        // Until this issue https://github.com/filamentgroup/tablesaw/issues/342) is fixed, tablesaw needs to be loaded before the page has finished loading.
+        // Once that issue is fixed, we can load it here:
+        //loadScriptFile("https://cdn.jsdelivr.net/npm/tablesaw@3.0.9/dist/tablesaw.min.js");
+        loadCssFile("https://cdn.jsdelivr.net/npm/tablesaw@3.0.9/dist/tablesaw.min.css");
+
+
         // setTimeout(function(){ 
         //     // Until this issue https://github.com/filamentgroup/tablesaw/issues/342) is fixed, loading tablesaw at this point will mean that we have to manually trigger the
         //     //   DOMContentLoaded event on the document after dynamically loading the script in order for Tablesaw to be aware that it can be safely initialized.
@@ -61,26 +90,30 @@ class CaseTimerEventViewer {
             Tablesaw.init();
         }
 
-
         d3.select(element).appendHTML(`
             <div id="case-timer-event-viewer-container" class="container-fluid font-scale-pct-80">
 
-                <div id="case-timer-event-viewer-error" class="alert alert-danger mt-3" role="alert">
-                    <h4 class="alert-heading"> Error:  Invalid input argument.  Please try again.</h4>
-                </div>
+                <div class="row mt-3 mb-3">
+                    <div class="col-10">
+                        <div id="case-timer-event-viewer-input">
+                            <div class="h4 bottom-border">Input</div>
 
+                            <div id="case-timer-event-viewer-error" class="alert alert-warning mt-3" role="alert">
+                                <div class="alert-heading"> To view case timer data for a given case, please enter a valid entity Id for a case, SLA, case timer, case timer event, or case timer snapshot.</div>
+                            </div>
                 
-                <div id="case-timer-event-viewer-input" class="mt-3">
-                    <div class="h4 bottom-border">Input</div>
-                    <div class="row mb-3">
-                        <div class="col-6">
                             <div class="input-group">
-                                <input type="text" class="form-control" placeholder="Enter a valid case Id, case timer Id, or SLA Id to load related data" id="entity-id" />
+                                <input type="text" class="form-control" placeholder="Enter a valid entity Id to load data for the related case" id="entity-id" />
                                 <div class="input-group-append">
                                     <button id="load-entity-button" class="btn btn-primary">Load</button>
                                 </div>
                             </div>
                         </div>
+                    </div>
+                    <div class="col-2">
+                        <div class="h4 bottom-border">Options</div>
+
+                        <input type="checkbox" id="should-show-snapshot-json-for-selected-items"> Show snapshot JSON for each selected item.
                     </div>
                 </div>
 
@@ -130,10 +163,12 @@ class CaseTimerEventViewer {
                         <div class="row">
                             <div class="col-8">
                                 <div class="h6">Events</div>
-                                <div id="event-details" class="scrollable-container" ></div>
+                                <div id="case-timer-event-details" class="scrollable-container" ></div>
                             </div>
                             <div class="col-4">
-                                <div class="h6">Snapshots</div>
+                                <div class="h6">Snapshots
+                                    <span id="snapshot-reminder" class="badge badge-warning">Remember...</button>
+                                </div>
                                 <div id="case-timer-snapshot-details" class="scrollable-container" ></div>
                             </div>
                         </div>
@@ -197,24 +232,65 @@ class CaseTimerEventViewer {
             toggleFn();
          });
 
-        d3.select('#load-entity-button')
-            .on('click', d => { 
-                var newurl = `${window.location.origin + window.location.pathname}?id=${d3.select('#entity-id').property('value')}`;
-                window.location.href = newurl;
-            });
+        function submitForm() {
+            var newurl = `${window.location.origin + window.location.pathname}?id=${d3.select('#entity-id').property('value')}`;
+            window.location.href = newurl;
+        }
 
-        const selectedCaseTimerLabel = document.getElementById('selected-case-timer-label');
+        d3.select('#load-entity-button')
+            .on('click', submitForm);
+        d3.select('#entity-id')
+            .on("keypress", function() { if(d3.event.keyCode === 13) submitForm(); });
+
+        
+        const ymdhmsfTimeParser = d3.utcParse("%Y-%m-%dT%H:%M:%S.%LZ");
+        const ymdhmsTimeParser = d3.utcParse("%Y-%m-%dT%H:%M:%SZ");
+        function parseDateTime(dateString) {
+            return d3.isoParse(dateString) || dateString;
+            //return ymdhmsfTimeParser(dateString) || ymdhmsTimeParser(dateString) || dateString;
+        }
+        const ymdhmsfTimeFormatter = d3.utcFormat("%Y-%m-%d %I:%M:%S.%L %p");
+        const ymdhmsTimeFormatter = d3.utcFormat("%Y-%m-%d %H:%M:%S");
+        const hmslTimeFormatter = d3.utcFormat("%H:%M:%S.%L");
+
+        // Cause toString'ed Date values to be rendered as ISO strings
+        Date.prototype.toString = Date.prototype.toISOString
+    
         const latestCaseDetailsContainer = document.getElementById('case-details-latest');
         const latestSlaDetailsContainer = document.getElementById('sla-details-latest');
+        const latestCaseTimerDetailsContainer = document.getElementById('case-timer-details-latest');
+        const timelineContainer = document.getElementById('timeline-chart');
+        const selectedCaseTimerLabel = document.getElementById('selected-case-timer-label');
+        const caseTimerEventDetailsContainer = document.getElementById('case-timer-event-details');
+        const caseTimerSnapshotDetailsContainer = document.getElementById('case-timer-snapshot-details');
         const historicalSnapshotDetailsContainer = document.getElementById('snapshot-details-historical');
         const historicalCaseDetailsContainer = document.getElementById('case-details-historical');
         const historicalSlaDetailsContainer = document.getElementById('sla-details-historical');
-        const timelineContainer = document.getElementById('timeline-chart');
-        const latestCaseTimerDetailsContainer = document.getElementById('case-timer-details-latest');
         const historicalCaseTimerDetailsContainer = document.getElementById('case-timer-details-historical');
-        const eventDetailsContainer = document.getElementById('event-details');
-        const caseTimerSnapshotDetailsContainer = document.getElementById('case-timer-snapshot-details');
-        const selectedSnapshotContainer = document.getElementById('snapshot-details');
+        
+        function shouldShowSnapshotJsonForSelectedItems() {
+            return d3.select('#should-show-snapshot-json-for-selected-items').property('checked');
+        }
+
+        executeFunctionWhenPredicateIsSatisfied(
+            () => window.Tooltip, 
+            () => {
+                new Tooltip(document.getElementById('snapshot-reminder'), {
+                    placement: 'top', 
+                    title: `The data of each snapshot represents the state of the case timer, SLA, etc. at the time of the snapshot. 
+                        And timer-related values (e.g. CaseTimer.ElapsedTime, SLA.TimeRemaining, etc.) are updated after each non-derived snapshot is taken.
+                        This means that the timer-related values shown on each snapshot actually represent the state of affairs as of the SnapshotTime of the prior non-derived snapshot.
+                        `, 
+                    html: false,
+                    // This fixes a conflict with Bootstrap's usage of popper  (i.e. it sets the opacity to 0 by default in _tooltip.scss)
+                    popperOptions: {
+                        onCreate: function(p) {
+                            p.instance.popper.classList.add('show');
+                        }
+                    }
+                });
+            }, 1000, 100);
+
 
         // =======================================================================================================================================================================
         // Property Config fields:
@@ -234,7 +310,7 @@ class CaseTimerEventViewer {
             { propertyLabel: "Owner's Site", propertyValueSelector: x => `${x.Owner.Site.Identifier} - ${x.Owner.Site.Name} (${x.Owner.Site.Id})`, onClick: null },
             
             { propertyLabel: "Employee", propertyValueSelector: x => `${x.Employee.FirstName} ${x.Employee.LastName} (${x.Employee.Id})`, onClick: null },
-            { propertyLabel: "Owner's Primary Site", propertyValueSelector: x => `${x.Employee.PrimarySite.Identifier} - ${x.Employee.PrimarySite.Name} (${x.Employee.PrimarySite.Id})`, onClick: null },
+            { propertyLabel: "Owner's Primary Site", propertyValueSelector: x => !x.Employee.PrimarySite ? '(none set)' : `${x.Employee.PrimarySite.Identifier} - ${x.Employee.PrimarySite.Name} (${x.Employee.PrimarySite.Id})`, onClick: null },
         ];
 
         // CaseTimer property configs
@@ -258,8 +334,9 @@ class CaseTimerEventViewer {
             { priority: 3, propertyLabel: "Last Calculated", propertyValueSelector: x => x.LastCalculated, onClick: null },
             //{ propertyLabel: "Last Modified", propertyValueSelector: x => x.LastModified, onClick: null },
             //{ propertyLabel: "Is Active", propertyValueSelector: x => x.IsActive, onClick: null },
-            { priority: 4, propertyLabel: "Started", propertyValueSelector: x => x.Started, onClick: null },
-            { priority: 4, propertyLabel: "Stopped", propertyValueSelector: x => x.Stopped, onClick: null },
+            { priority: 4, propertyLabel: "Started Time", propertyValueSelector: x => x.Started, onClick: null },
+            { priority: 4, propertyLabel: "Stopped Time", propertyValueSelector: x => x.Stopped, onClick: null },
+            { priority: 4, propertyLabel: "Error Time", propertyValueSelector: x => x.ErrorTime, onClick: null },
             { priority: 6, propertyLabel: "Id", propertyValueSelector: x => x.Id, onClick: null },
         ];
 
@@ -309,6 +386,7 @@ class CaseTimerEventViewer {
 
         // Case Timer Snapshot property configs
         const caseTimerSnapshotPropertyConfigs = [
+            { priority: 0, propertyLabel: "#", propertyValueSelector: x => x.OrdinalId, onClick: null },
             { priority: 0, propertyLabel: "Snapshot<br>(details)", propertyValueSelector: d => d, onClick: cts => renderSnapshotDetails(cts) },
             { priority: 0, propertyLabel: "Snapshot Time", propertyValueSelector: d => d.SnapshotTime, onClick: null },
             { priority: 1, propertyLabel: "Id", propertyValueSelector: d => d.Id, onClick: null },
@@ -333,22 +411,31 @@ class CaseTimerEventViewer {
         // Other functions below
 
         function renderCaseData(caseDataToRender) {
+            console.log("Unparsed case data to be rendered: ", caseDataToRender);
+
             // Update visibility of sections
             d3.select('#case-timer-event-viewer-error').visible(caseDataToRender === null);
             d3.select('#case-timer-event-viewer-content').visible(caseDataToRender !== null);
 
             // Validate input
             if (!caseDataToRender) { /*alert('case data was not provided.');*/ return; }
-            if ((caseDataToRender.Timers || []).length == 0) { alert('case data contains no timers'); return; }
     
-            console.log("Original case data:", caseDataToRender);
             let caseTimerTimelineData = transformCaseDataToTimelineData(caseDataToRender);
-            console.log("Timeline data:", caseTimerTimelineData);
+            console.log("Case data: ", caseDataToRender);
+            console.log("Timeline data: ", caseTimerTimelineData);
 
             // Render stuff
             renderLatestCaseProperties(caseDataToRender);
             renderLatestCaseTimersTable(caseDataToRender.Timers);
             timeline = self.timeline = renderTimeline(timelineContainer, caseTimerTimelineData);
+
+            d3.select(selectedCaseTimerLabel).html('(no timer selected)');
+            emptyContainer(caseTimerEventDetailsContainer);
+            emptyContainer(caseTimerSnapshotDetailsContainer);
+            emptyContainer(historicalSnapshotDetailsContainer);
+            emptyContainer(historicalCaseDetailsContainer);
+            emptyContainer(historicalSlaDetailsContainer);
+            emptyContainer(historicalCaseTimerDetailsContainer);
 
             caseDataModel = caseDataToRender;
         }
@@ -364,18 +451,21 @@ class CaseTimerEventViewer {
 
             // Save and clear properties that are redundant or which would cause problems.
             beforeSnapshotDataSerialized(cts.SnapshotData);
-            var {saved_CaseTimer, saved_point, saved_interval} = cts;
-            delete cts.CaseTimer;
-            delete cts.point;
-            delete cts.interval;
-            
-            createJsonViewerPopup( cts, `Case Timer Snapshot taken at ${formatDate(cts.Snapshottime)} for timer '${cts.SnapshotData.CaseTimer.Name}'`);
+
+            // These are the only fields we want to preserve for the visualization
+            var ssCopy = {
+                "SnapshotTime": cts.SnapshotTime,
+                "OrdinalId": cts.OrdinalId,
+                "IsDerived": cts.IsDerived,
+                "SnapshotData":  cts.SnapshotData,
+                "UniqueId": cts.UniqueId,
+                "Id": cts.Id,
+                "LastModified": cts.LastModified,
+            };
+            createJsonViewerPopup(ssCopy, `Case Timer Snapshot taken at ${formatDateTime(cts.SnapshotTime)} for timer '${cts.SnapshotData.CaseTimer.Name}'`);
 
             // Restore values
             afterSnapshotDataSerialized(cts.SnapshotData);
-            cts.CaseTimer = saved_CaseTimer;
-            cts.point = saved_point;
-            cts.interval = saved_interval;
         }
 
         function displayEventDataAsJson(caseTimerEvent)
@@ -391,12 +481,12 @@ class CaseTimerEventViewer {
                 // If the SLA hasn't already been removed
                 if (ssd.Sla != null)
                 {
-                    ssd.Sla.CaseTimer = "(see SnapshotData.CaseTimer)";  // = null;
+                    ssd.Sla.CaseTimer = "(see SnapshotData.CaseTimer)";
                 }
             }
             else if (ssd.Sla != null)
             {
-                ssd.Sla.CaseTimer.Case = "(see SnapshotData.CaseTimer.Case)";  // = null;
+                ssd.Sla.CaseTimer.Case = "(see SnapshotData.CaseTimer.Case)";
             }
         }
 
@@ -436,63 +526,83 @@ class CaseTimerEventViewer {
 
             var timeline = new TimelineChart(container, timelineData, {
                 //enableLiveTimer: true, 
-                tip: formatTipText,
+                tipContentGenerator: generateTipHtmlContent,
                 groupHeight: 36,
                 groupWidth: 400
             }); //.onVizChange(e => console.log(e));
             d3.select('#reset-timeline-view').on('click', () => timeline.resetTransform())
 
             // Resize container vertically to fit timeline
-            var timelineHeight = d3.select(container).node().clientHeight;
-            d3.select(container).style("height", (timelineHeight)+"px");
+            //d3.select(container).style("height", null);
+            //var timelineHeight = d3.select(container).node().clientHeight;
+            //d3.select(container).style("height", (timelineHeight)+"px");
             return timeline;
         }
-
 
         function separateWordsInCamelCaseStringWithSpaces(str) {
             return (str || '').replace(/([A-Z])/g, " $1").trim();
         }
 
-        function formatDate(date) {
+        function formatDateTime(date) {
+            if (!date) return '';
             // We will only display fractional seconds to ms precision, because JS's date doesn't support any greater precision than that.
-            //return moment(date).format('MMMM Do YYYY, h:mm:ss.SSS a');
-            return moment(date).format('YYYY-MM-DD hh:mm:ss.SSS a');
+            return ymdhmsfTimeFormatter(date);
         }
 
-        // function createLabelFromIntervalDuration(d){
-        //     return formatDuration(d.to, d.from);
-        // };
+        function formatDuration(later, earlier) {
+            var rem_ms = later - earlier;  // remaining ms
+            var ms = rem_ms % 1000;
+            var rem_s = Math.floor(rem_ms / 1000);  // seconds remaining
+            var s = rem_s % 60;  // integral seconds part
+            var rem_m = Math.floor(rem_s / 60);  // minutes remaining
+            var m = rem_m % 60;  // integral minutes part
+            var rem_h = Math.floor(rem_m / 60);  // hours remaining
+            var h = rem_h % 24;  // integral hours part
+            var rem_d = Math.floor(rem_h / 24);  // days remaining
+            var d = rem_d % 365;  // integral days part
+            var y = Math.floor(d / 365);  // integral years part
+
+            var parts = [
+                y ? `${y} year${y>1?'s':''}` : null,
+                d ? `${d} day${d>1?'s':''}` : null,
+                h ? `${h} hour${h>1?'s':''}` : null,
+                m ? `${m} minute${m>1?'s':''}` : null,
+                s ? `${s} second${s>1?'s':''}` : null
+            ].filter(x => x != null);
+            var durationString = parts.join(' ');
+            return durationString || ms+' ms';
+        }
+
+        /* Generate the HTML content of the tip for each timeline object from the following properties of each:
+            type:  Symbol - Should be either TimelineChart.TYPE.POINT or TimelineChart.TYPE.INTERVAL.
+            label:  string | function - HTML content (or function to generate the same) which BRIEFLY names/identifies the object.
+            details:  string | function - HTML content (or function to generate the same) which provides details about the object.
+        */
+        function generateTipHtmlContent(d) {
+            // if d.label is a fn, call it to generate tip label content.
+            var tipHeading = typeof(d.label) == 'function' ? formatLabelForTipHtml(d.label(d)+'') : typeof(d.label)=='string' ? formatLabelForTipHtml(d.label) : '(no label)';
+
+            var tipDetails = typeof(d.details) == 'function' ? d.details(d)+'' : typeof(d.details) == 'string' ? d.details : '';
+
+            // Auto-generate temporal description.  Include "at" time for points or from/to time range for intervals with label.
+            var temporalDescription = d.type == TimelineChart.TYPE.POINT ? 'Time: '+formatDateTime(d.at) : 
+                'From: '+formatDateTime(d.from)+
+                '<br>To: '+formatDateTime(d.to)+
+                '<br>Duration: '+formatDuration(d.to, d.from);
+            var result = `
+                <div class="tip-heading h5">${tipHeading}</div>
+                <div class="tip-body">
+                <div>${temporalDescription}</div>
+                <div>${tipDetails}</div>
+                </div>`;
+            return result;
+        };
 
         function formatLabelForTipHtml(label) {
             return (label || '').replace(/ /g, '&nbsp;').replace(/\\n/g, '<br>');
         };
 
-        function formatDuration(later, earlier) {
-            var msDiff = moment(later).diff(moment(earlier));
-            var duration = moment.duration(msDiff);
-            var parts = [
-                duration.years() ? duration.years()+' year(s)' : null,
-                duration.months() ? duration.months()+' month(s)' : null,
-                duration.days() ? duration.days()+' day(s)' : null,
-                duration.hours() ? duration.hours()+' hour(s)' : null,
-                duration.minutes() ? duration.minutes()+' minute(s)' : null,
-                duration.seconds() ? duration.seconds()+' second(s)' : null,
-            ].filter(x => x != null);
-            var durationString = parts.join(' ');
-            return durationString || duration.milliseconds()+' ms';
-        };
-
-        function formatTipText(d) {
-            // if d.label is a fn, call it to generate tip label content.
-            var tipHeading = typeof(d.label) == 'function' ? formatLabelForTipHtml(d.label(d)+'') : typeof(d.label)=='string' ? formatLabelForTipHtml(d.label) : '(no label)';
-            // include "at" time for points or from/to time range for intervals with label
-            var tipBody = d.type == TimelineChart.TYPE.POINT ? 'Time: '+formatDate(d.at) : 'From: '+formatDate(d.from)+'<br>To: '+formatDate(d.to)+'<br>Duration: '+formatDuration(d.to, d.from);
-
-            var result = `<div class="tip-heading">${tipHeading}</div> <br> <div class="tip-body">${tipBody}</div>`;
-            return result;
-        };
-
-        // Returns a new string with all single and double quotes escaped, in order to ensure that it can be embedded into another string expression without causing issues.
+        // Returns a new string with all single and double quotes escaped, in order to ensure that it can be embedded into another string expression without causing problems.
         // NOTE:  This won't detect if single or double quotes have already been escaped, so it could potentially double-escape them, which would defeat the purpose of this method.
         function escapeQuotes(str) {
             return str.replace(/'/g,"\\'").replace(/"/g,'\\"');
@@ -501,8 +611,6 @@ class CaseTimerEventViewer {
         // Create a separate window to view the formatted JSON content of CaseTimerSnapshotData and CaseTimerEventData
         function createJsonViewerPopup(objToView, heading) {
             var objJson = JSON.stringify(objToView);
-            var popup = window.open("", "json-viewer-popup", "width=800,height=1200", false);
-            var doc = popup.document;
             var html = `
             <html>
                 <head>
@@ -516,12 +624,18 @@ class CaseTimerEventViewer {
                     <\/script>
                 </body>
             </html>`;
+            createPopupWindowFromHtml(html, 'json-viewer-popup', 'width=800,height=1200');
+        }
+    
+        function createPopupWindowFromHtml(html, targetId, windowFeatures, windowTitle) {
+            var popup = window.open("", targetId, windowFeatures, false);
+            var doc = popup.document;
             doc.open();
             doc.write(html);
             doc.close();
-            doc.title = heading;
+            doc.title = windowTitle;
         }
-    
+
         function isUUID(value) {
             var result = value.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
             return !!result && result.index === 0;
@@ -545,7 +659,6 @@ class CaseTimerEventViewer {
             // Sla properties
             emptyContainer(latestSlaDetailsContainer);
             renderProperties(latestSlaDetailsContainer, slaPropertyConfigs, caseDataToRender.Sla);
-            //renderTableOfObjects(latestSlaDetailsContainer, slaPropertyConfigs, allSlas, selectedSlas);
         }
 
         function renderLatestCaseTimersTable(allCaseTimers, selectedTimers)
@@ -554,22 +667,19 @@ class CaseTimerEventViewer {
             renderTableOfObjects(latestCaseTimerDetailsContainer, caseTimerPropertyConfigs, allCaseTimers, selectedTimers);
         }
 
-        // Both event and snapshot data  details are treated as immutable, so we don't need to differentiate between latest/historical
+        // Both event and snapshot data details are treated as immutable, so we don't need to differentiate between latest/historical
         function renderEventDetailsTableAndSnapshotDetailsTableFromEvents(allEvents, selectedEvents)
         {
-            var caseTimer = allEvents[0].CaseTimer;
+            if (!allEvents || !allEvents.length) return;  // don't continue to display invalid data
 
-            // var snapshotMap = d3.map(caseDataModel.Snapshots, ss => ss.Id);
-            // var snapshotsForAllEvents = allEvents.map(evt => snapshotMap.get(evt.CaseTimerSnapshot.Id));
-            // var distinctSnapshotsForAllEvents = d3.map(snapshotsForAllEvents, ss => ss.Id).values();
-            // var orderedDistinctSnapshotsForAllEvents = sortBy(distinctSnapshotsForAllEvents, ss => ss.SnapshotTime, true);
-            // var snapshotsForSelectedEvents = selectedEvents.map(evt => snapshotMap.get(evt.CaseTimerSnapshot.Id));
-            // var latestSnapshot = maxBy(selectedEvents.map(x => x.CaseTimerSnapshot), x => x.SnapshotTime);
+            var caseTimer = allEvents[0].CaseTimer;
 
             // Identify snapshots corresponding to selected events
             var snapshotsForSelectedEvents = selectedEvents.map(evt => evt.CaseTimerSnapshot);
             var latestSnapshot = maxBy(selectedEvents.map(x => x.CaseTimerSnapshot), x => x.SnapshotTime);
             
+            highlightNodesInTimeline(selectedEvents, snapshotsForSelectedEvents);
+
             renderEventDetailsTableAndSnapshotDetailsTableAndHistoricalData(
                 allEvents, selectedEvents, caseTimer.Snapshots, snapshotsForSelectedEvents, latestSnapshot);
         }
@@ -578,13 +688,31 @@ class CaseTimerEventViewer {
         function renderEventDetailsTableAndSnapshotDetailsTableFromSnapshots(snapshots, selectedSnapshots)
         {
             var caseTimerId = snapshots[0].SnapshotData.CaseTimer.Id;
-            var timer = caseDataModel.CaseTimerMap.get(caseTimerId);
+            var caseTimer = caseDataModel.CaseTimerMap.get(caseTimerId);
 
             // Identify events corresponding to selected snapshots
-            var selectedEvents = selectedSnapshots.selectMany(ss => caseDataModel.EventsBySnapshotIdLookup.get(ss.Id));
+            var selectedEvents = selectedSnapshots.selectMany(ss => caseDataModel.EventsBySnapshotIdLookup.get(ss.Id)) || [];
+
+            highlightNodesInTimeline(selectedSnapshots, selectedEvents);
 
             renderEventDetailsTableAndSnapshotDetailsTableAndHistoricalData(
-                timer.Events, selectedEvents, snapshots, selectedSnapshots, firstOrDefault(selectedSnapshots));
+                caseTimer.Events, selectedEvents, snapshots, selectedSnapshots, firstOrDefault(selectedSnapshots));
+        }
+
+        function highlightNodesInTimeline(primaryItemsToHighlight, secondaryItemsToHighlight)
+        {
+            // generate array of primary point and interval ID's
+            var primaryIds = primaryItemsToHighlight
+                .map(x => ['p'+x.Id, 'i'+x.Id])
+                .reduce((accumulator, currentValue) => accumulator.concat(currentValue), []);
+            // generate array of secondary point and interval ID's
+            var secondaryIds = secondaryItemsToHighlight
+                .map(x => ['p'+x.Id, 'i'+x.Id])
+                .reduce((accumulator, currentValue) => accumulator.concat(currentValue), []);
+
+            // In the timeline, highlight the related point based on this snapshot
+            timeline.highlightNodeByIds(secondaryIds, false, 'chart-node-highlight-secondary');
+            timeline.highlightNodeByIds(primaryIds, true, 'chart-node-highlight-primary');
         }
 
         // Both event and snapshot objects are treated as immutable, so we don't need to differentiate between latest/historical
@@ -592,23 +720,28 @@ class CaseTimerEventViewer {
         {
             if (events && events.length) {
                 var ct = events[0].CaseTimer;
-                d3.select(selectedCaseTimerLabel).html(`Timer #${ct.OrdinalId} for ${ct.CaseTimerType === 'CaseTimer' ? 'Case' : 'Sla'}: "${ct.Name}"`);
+                d3.select(selectedCaseTimerLabel).html(`Selected Timer #${ct.OrdinalId} for ${ct.CaseTimerType === 'CaseTimer' ? 'Case' : 'Sla'}: "${ct.Name}"`);
             }
             if (!snapshotToUseForHistoricalData && firstOrDefault(selectedSnapshots) != null)
                 snapshotToUseForHistoricalData = firstOrDefault(selectedSnapshots);
-            emptyContainer(eventDetailsContainer);
+            emptyContainer(caseTimerEventDetailsContainer);
             emptyContainer(caseTimerSnapshotDetailsContainer);
             sortBy(events, cte => cte.OrdinalId, true);
-            sortBy(snapshots, ss => ss.SnapshotTime, true);
-            renderTableOfObjects(eventDetailsContainer, caseTimerEventPropertyConfigs, events, selectedEvents);
+            sortBy(snapshots, ss => ss.OrdinalId, true);
+            renderTableOfObjects(caseTimerEventDetailsContainer, caseTimerEventPropertyConfigs, events, selectedEvents);
             renderTableOfObjects(caseTimerSnapshotDetailsContainer, caseTimerSnapshotPropertyConfigs, snapshots, selectedSnapshots);
             renderHistoricalDataFromSnapshot(snapshotToUseForHistoricalData);
+
+            if (selectedSnapshots && selectedSnapshots.length > 0 && shouldShowSnapshotJsonForSelectedItems())
+            {
+                displaySnapshotAsJson(selectedSnapshots[0]);
+            }
         }
         
         function renderEventDetails(caseTimerEvent)
         {
             // In the timeline, highlight the related point (and interval) based on this event
-            timeline.highlightNodeByIds(['p'+caseTimerEvent.Id, 'i'+caseTimerEvent.Id], true, 'chart-node-highlight');
+            //timeline.highlightNodeByIds(['p'+caseTimerEvent.Id, 'i'+caseTimerEvent.Id], true, 'chart-node-highlight');
 
             // Render any historical data associated with this event's snapshot
             renderHistoricalDataFromSnapshot(caseTimerEvent.CaseTimerSnapshot);
@@ -623,7 +756,7 @@ class CaseTimerEventViewer {
             var snapshotsForTimer = caseDataModel.CaseTimerMap.get(caseTimerId).Snapshots;
             
             // In the timeline, highlight the related point based on this snapshot
-            timeline.highlightNodeByIds('p'+caseTimerSnapshot.Id, true, 'chart-node-highlight');
+            //timeline.highlightNodeByIds('p'+caseTimerSnapshot.Id, true, 'chart-node-highlight');
 
             // Render any historical data associated with this snapshot
             renderHistoricalDataFromSnapshot(caseTimerSnapshot);
@@ -646,7 +779,7 @@ class CaseTimerEventViewer {
             renderProperties(historicalSlaDetailsContainer, slaPropertyConfigs, snapshot.SnapshotData.CaseTimer.Case.Sla);
 
             // For each case timer in effect, resolve the latest snapshot whose snapshot time is <= the current snapshot 
-            var eligibleSnapshots = getCaseDataModel().Snapshots.filter(x => x.SnapshotTime < snapshot.SnapshotTime);
+            var eligibleSnapshots = getCaseDataModel().Snapshots.filter(x => x.SnapshotTime <= snapshot.SnapshotTime);
             var snapshotsGroupedByTimerId = d3.nest()
                 .key(d => d.SnapshotData.CaseTimer.Id)
                 .entries(eligibleSnapshots);
@@ -659,24 +792,9 @@ class CaseTimerEventViewer {
             renderTableOfObjects(historicalCaseTimerDetailsContainer, caseTimerPropertyConfigs, caseTimersToDisplay, []);
         }
 
-        // function renderHistoricalCaseProperties(historicalCaseDataToRender)
-        // {
-        //     emptyContainer(historicalCaseDetailsContainer);
-        //     renderProperties(historicalCaseDetailsContainer, casePropertyConfigs, historicalCaseDataToRender);
-
-        //     emptyContainer(historicalSlaDetailsContainer);
-        //     renderProperties(historicalSlaDetailsContainer, slaPropertyConfigs, historicalCaseDataToRender.Sla);
-        // }
-
-        // function displaySnapshotDetails(allSnapshots, selectedSnapshots)
-        // {
-        //     //console.log("selected CaseTimerSnapshot: ", caseTimerSnapshot);
-        //     emptyContainer(selectedSnapshotContainer);
-        //     renderTableOfObjects(selectedSnapshotContainer, caseTimerSnapshotPropertyConfigs, allSnapshots, selectedSnapshots);
-        // }
-
         // Perform an in-place sort of array elements according to the "value" of the property returned by the specified selector.  Then, return the sorted array.
         function sortBy(arr, ps, ascendingOrder) {
+            if (!arr) return [];
             return arr.sort((a,b) => ps(a) < ps(b) ? -1 : ps(a) == ps(b) ? 0 : 1);
         }
 
@@ -761,17 +879,19 @@ class CaseTimerEventViewer {
                     .call(sel => renderPropertyValue(sel, obj));
             });
 
+            // Apply tablesaw features to table
+            initializeTableFeatures();
+
             // attempt to scroll all highlighted items into view
             var highlightedElements = table.selectAll('.row-highlight').nodes();
             if (highlightedElements && highlightedElements[0] && highlightedElements[0].scrollIntoView)
             {
+                // scroll the last highlighted element into view
                 highlightedElements[highlightedElements.length-1].scrollIntoView({ block: "nearest" });
+                // if more than 1 is highlighted, then scroll the first highlighted element into view
                 if (highlightedElements.length > 1)
                     highlightedElements[0].scrollIntoView({ block: "nearest" });
             }
-
-            // Apply tablesaw features to table
-            initializeTableFeatures();
         }
 
         function renderPropertyValue(d3SelectionBoundToPropertyConfig, objectWithProperties) {
@@ -838,7 +958,7 @@ class CaseTimerEventViewer {
             }
             else if (propertyValue.constructor == (new Date()).constructor)
             {
-                return formatDate(propertyValue);
+                return formatDateTime(propertyValue);
             }
             else if(!!propertyConfig.onClick)
             {
@@ -847,53 +967,76 @@ class CaseTimerEventViewer {
             return '<em>(no value resolver defined for this type)</em>'
         }
 
-        function normalizeProperties(caseTimerArray)
-        {
-            var convertDateProperties = function(obj, propertyNamesArray)
-            {
-                if (!obj) return;
-                propertyNamesArray.forEach(pn => {
-                    var value = obj[pn];
-                    if (value !== null && typeof value === 'string')
-                        obj[pn] = new Date(value);
-                });
-            };
+        // function normalizeProperties(caseTimerArray)
+        // {
+        //     var convertDateProperties = function(obj, propertyNamesArray)
+        //     {
+        //         if (!obj) return;
+        //         propertyNamesArray.forEach(pn => {
+        //             var value = obj[pn];
+        //             if (value !== null && typeof value === 'string')
+        //                 obj[pn] = parseDateTime(value);
+        //         });
+        //     };
 
-            caseTimerArray.forEach(ct => {
-                ct.Events.forEach(e => {
-                    convertDateProperties(e, [ "EventTime", "LastModified" ]);
-                    convertDateProperties(e.CaseTimerSnapshot, [ "SnapshotTime", "LastModified" ]);
-                    var ssd = e.CaseTimerSnapshot.SnapshotData;
-                    convertDateProperties(ssd, [ "SnapshotTime", "LastModified" ]);
-                    convertDateProperties(ssd.CaseTimer, [ "LastCalculated", "LastModified", "Started", "Stopped" ]);
-                    convertDateProperties(ssd.Sla, [ "EstimatedNextControlPointDate", "EstimatedTargetResolutionDate", "LastModified" ]);
-                });
-                convertDateProperties(ct, [ "LastCalculated", "LastModified", "Started", "Stopped" ]);
-            });
-        }
+        //     caseTimerArray.forEach(ct => {
+        //         ct.Events.forEach(e => {
+        //             convertDateProperties(e, [ "EventTime", "LastModified" ]);
+        //             convertDateProperties(e.CaseTimerSnapshot, [ "SnapshotTime", "LastModified" ]);
+        //             var ssd = e.CaseTimerSnapshot.SnapshotData;
+        //             convertDateProperties(ssd, [ "SnapshotTime", "LastModified" ]);
+        //             convertDateProperties(ssd.CaseTimer, [ "LastCalculated", "LastModified", "Started", "Stopped" ]);
+        //             convertDateProperties(ssd.Sla, [ "EstimatedNextControlPointDate", "EstimatedTargetResolutionDate", "LastModified" ]);
+        //         });
+        //         convertDateProperties(ct, [ "LastCalculated", "LastModified", "Started", "Stopped" ]);
+        //     });
+        // }
 
         function restoreReferencesInCaseTimerObjectGraph(caseTimerArray)
         {
             // normalize data
             caseTimerArray.forEach(ct => 
             {
+                ct.Snapshots.forEach(ss => {
+                    afterSnapshotDataDeserialized(ss.SnapshotData);
+                });
+                var snapshotsById = d3.map(ct.Snapshots, ss => ss.Id);
+
                 ct.Events.forEach(e => 
                 {
                     // link the case timer events to the case timer that it belongs to
                     e.CaseTimer = ct;
+                    e.CaseTimerSnapshot = snapshotsById.get(e.CaseTimerSnapshot.Id);
 
-                    afterSnapshotDataDeserialized(e.CaseTimerSnapshot.SnapshotData);
+                    //afterSnapshotDataDeserialized(e.CaseTimerSnapshot.SnapshotData);
                 });
             });
         }
 
+        // Convert date strings to date objects
+        function normalizeDatesRecursively(input) {
+            var eachRecursive = function(obj)
+            {
+                d3.map(obj).each((val, key) => {
+                    if (!!val)
+                    {
+                        if (typeof val === "object") eachRecursive(val);
+                        if (typeof val === "string") obj[key] = parseDateTime(val);
+                    }
+                });
+            }
+            eachRecursive(input);
+        }
+
         function transformCaseDataToTimelineData(caseDataToTransform)
         {
+            if (!caseDataToTransform.Timers.length) return [];
+            
             // create a copy of the data
             //let caseTimerArray = JSON.parse(JSON.stringify(caseDataToTransform.Timers));
 
-            // Ensure that timers are ordered by when they were created
-            let caseTimerArray = sortBy(caseDataToTransform.Timers, _ => _.Created);  // caseDataToTransform.Timers.sort((a,b) => a.Created < b.Created ? -1 : a.Created == b.Created ? 0 : 1);
+            // Ensure that timers are ordered by when they were started
+            let caseTimerArray = sortBy(caseDataToTransform.Timers, _ => _.Started);
 
             // Iterate over timers to set an ordinal ID and to sort events on each
             var ordinalId = 1;
@@ -902,10 +1045,10 @@ class CaseTimerEventViewer {
                 sortBy(ct.Events, _ => _.EventTime);
             });
 
-            restoreReferencesInCaseTimerObjectGraph(caseTimerArray);
+            normalizeDatesRecursively(caseDataToTransform);
+            //normalizeProperties(caseTimerArray);
 
-            // Convert date strings to date objects
-            normalizeProperties(caseTimerArray);
+            restoreReferencesInCaseTimerObjectGraph(caseTimerArray);
 
             // Flatten the events
             var allEvents = caseTimerArray.selectMany(t => t.Events);
@@ -919,9 +1062,10 @@ class CaseTimerEventViewer {
             caseDataToTransform.SnapshotMap = caseTimerSnapshotsMap;
             caseDataToTransform.Snapshots = sortBy(caseTimerSnapshotsMap.values(), ss => ss.SnapshotTime, true);
             // Create a D3 map of case timer Id's to snapshots
-            var snapshotsByCaseTimerIds = d3.nest().key(cts => cts.SnapshotData.CaseTimer.Id).map(caseDataToTransform.Snapshots);
+//            var snapshotsByCaseTimerIds = d3.nest().key(cts => cts.SnapshotData.CaseTimer.Id).map(caseDataToTransform.Snapshots);
             // Set snapshots array on each case timer object (to facilitate access later)
-            caseTimerArray.forEach(ct => ct.Snapshots = sortBy(snapshotsByCaseTimerIds.get(ct.Id), ss => ss.SnapshotTime, true));
+//            caseTimerArray.forEach(ct => ct.Snapshots = sortBy(snapshotsByCaseTimerIds.get(ct.Id), ss => ss.SnapshotTime, true));
+            caseTimerArray.forEach(ct => ct.Snapshots = sortBy(ct.Snapshots, ss => ss.SnapshotTime, true));
             // Create a D3 nested map from case timer snapshot Id to events
             caseDataToTransform.EventsBySnapshotIdLookup = d3.nest().key(cte => cte.CaseTimerSnapshot.Id).map(allEvents);
 
@@ -944,14 +1088,14 @@ class CaseTimerEventViewer {
                             type: TimelineChart.TYPE.POINT,
                             //customClass: 'point-white',
                             label: function(){ 
-                                return `${eventsAtTime.length} Event${eventsAtTime.length == 1 ? '' : 's'}:<br>` + 
-                                    eventsAtTime.map(e => ` - ${e.EventIdentifierString}<br>`).join('');
+                                return `${eventsAtTime.length} Event${eventsAtTime.length == 1 ? '' : 's'}` + 
+                                    eventsAtTime.map(e => `<br>📅 ${e.EventIdentifierString}`).join('');
                             },
                             at: timeOfEvents,
                             data: d.values,
                             ids: d.values.map(p => 'p'+p.Id),  // event guids will serve as the ids
-                            onClick: function(){ 
-                                timeline.highlightNodeByIds('p'+d.values[0].Id, true, 'chart-node-highlight');
+                            onClick: function(){
+                                //timeline.highlightNodeByIds('p'+d.values[0].Id, true, 'chart-node-highlight');
                                 renderLatestCaseTimersTable(caseTimerArray, [ ct ]);
                                 renderEventDetailsTableAndSnapshotDetailsTableFromEvents(ct.Events, eventsAtTime); 
                             }
@@ -976,19 +1120,82 @@ class CaseTimerEventViewer {
                     .map(d => {
                         var snapshotTime = new Date(d.key*1); // convert key from string to a number to a date
                         var snapshotsAtTime = d.values;
+
+                        function generateSnapshotTipHtmlDetails(snapshots) {
+                            // the current snapshot to use for this point
+                            var ss = snapshots.find(ss => !ss.IsDerived) || snapshots[0];
+                            // resolve the subsequent non-derived snapshot
+                            var sndss = ss.SubsequentNonDerivedSnapshot;
+                            if (!sndss) return '';
+                            var timer = sndss.SnapshotData.CaseTimer;
+                            var timerInfo = !timer ? '' : `
+                                <h5>Timer</h5> 
+                                State: ${timer.CurrentEffectiveClockState}<br>
+                                Current NWTP Types: ${timer.CurrentNonWorkingTimePeriodTypes}<br>
+                                Elapsed Time: ${timer.ElapsedTime} (${timer.Offset} + ${timer.RunTime})<br>
+                                Last Calculated: ${formatDateTime(timer.LastCalculated)}<br>
+                            `;
+                            var sla = sndss.SnapshotData.Sla;
+                            var slaInfo = !sla ? '' : `
+                                <h5>SLA</h5> 
+                                Status: ${sla.Status}<br>
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col"></th>
+                                            <th scope="col">Target Duration</th>
+                                            <th scope="col">Duration Remaining</th>
+                                            <th scope="col">Estimated DateTime</th>
+                                            <th scope="col">Breached?</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <th scope="row">SLA Initial Response</th>
+                                            <td>${sla.TargetInitialResponseDuration}</td>
+                                            <td>${sla.TimeUntilInitialResponse || ''}</td>
+                                            <td>${formatDateTime(sla.ExpectedInitialResponseDate)}</td>
+                                            <td>${sla.HasInitialResponseBreached}</td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">SLA Target Resolution</th>
+                                            <td>${sla.TargetResolutionDuration}</td>
+                                            <td>${sla.TimeRemaining}</td>
+                                            <td>${formatDateTime(sla.EstimatedTargetResolutionDate)}</td>
+                                            <td>${sla.HasTargetResolutionBreached}</td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Next Control Point</th>
+                                            <td></td>
+                                            <td>${sla.TimeUntilNextControlPoint}</td>
+                                            <td>${formatDateTime(sla.EstimatedNextControlPointDate)}</td>
+                                            <td></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                `;
+                            return `<div><em>The following comes from ${!sndss.Id ? 'the current state of this case timer' : `subsequent non-derived snapshot ${sndss.Id}`}.</em></div>
+                                    ${timerInfo}
+                                    ${slaInfo}
+                                    ${ss.IsDerived ? '<div><strong><em>NOTE: Because this snapshot is derived, the times above may not be accurate.  They actually describe the state of affairs as of the prior non-derived snapshot.</em></strong></div>' : ''}
+                                    `;
+                        }
                         // Create point data structure
                         var pointObj = {
                             type: TimelineChart.TYPE.POINT,
                             //customClass: 'point-white',
-                            label: function(){ 
-                                return `${snapshotsAtTime.length} Snapshot${snapshotsAtTime.length == 1 ? '' : 's'}:<br>` + 
-                                snapshotsAtTime.map(e => ` - ${e.Id}<br>`).join('');
+                            label: function() {
+                                var ss = snapshotsAtTime.find(ss => !ss.IsDerived) || snapshotsAtTime[0];
+                                return `📷 ${ss.IsDerived ? 'Derived' : 'Live'} Snapshot ${ss.OrdinalId}: ${ss.Id}`;
+                                // return `${snapshotsAtTime.length} Snapshot${snapshotsAtTime.length == 1 ? '' : 's'}`+
+                                //     snapshotsAtTime.map(e => `<br>📷 ${e.OrdinalId}: ${e.IsDerived ? 'Derived' : 'Live'}: ${e.Id}`).join('');
                             },
+                            details : function() { return generateSnapshotTipHtmlDetails(snapshotsAtTime); },
                             at: snapshotTime,
                             data: d.values,
                             ids: d.values.map(p => 'p'+p.Id),  // snapshot guids will serve as the ids
                             onClick: function(){ 
-                                timeline.highlightNodeByIds('p'+d.values[0].Id, true, 'chart-node-highlight');
+                                //timeline.highlightNodeByIds('p'+d.values[0].Id, true, 'chart-node-highlight');
                                 renderLatestCaseTimersTable(caseTimerArray, [ ct ]);
                                 renderEventDetailsTableAndSnapshotDetailsTableFromSnapshots(ct.Snapshots, snapshotsAtTime); 
                             }
@@ -1099,17 +1306,17 @@ class CaseTimerEventViewer {
                                 intervalType: ic.intervalType,
                                 customClass: ic.customClass,
                                 label: ic.intervalLabelFn(curEvt),
-                                from: new Date(curEvt.EventTime)
+                                from: parseDateTime(curEvt.EventTime)
                             };
                             if (nextEvt != null)
                             {
                                 // if both endpoints of interval are known
                                 intervalObj = Object.assign({
-                                    to: new Date(nextEvt.EventTime),
+                                    to: parseDateTime(nextEvt.EventTime),
                                     data: [curEvt, nextEvt],
                                     ids: ['i'+curEvt.Id, 'i'+nextEvt.Id],  // starting/ending event guids will serve as the ids
                                     onClick: function(){ 
-                                        timeline.highlightNodeByIds('i'+curEvt.Id, true, 'chart-node-highlight');
+                                        //timeline.highlightNodeByIds('i'+curEvt.Id, true, 'chart-node-highlight');
                                         renderLatestCaseTimersTable(caseTimerArray, [ ct ]);
                                         renderEventDetailsTableAndSnapshotDetailsTableFromEvents(ct.Events, [curEvt, nextEvt]);
                                     } 
@@ -1124,7 +1331,7 @@ class CaseTimerEventViewer {
                                     data: [curEvt],
                                     ids: ['i'+curEvt.Id ],  // starting event guid will serve as the id
                                     onClick: function(){
-                                        timeline.highlightNodeByIds('i'+curEvt.Id, true, 'chart-node-highlight');
+                                        //timeline.highlightNodeByIds('i'+curEvt.Id, true, 'chart-node-highlight');
                                         renderLatestCaseTimersTable(caseTimerArray, [ ct ]);
                                         renderEventDetailsTableAndSnapshotDetailsTableFromEvents(ct.Events, [curEvt]);
                                     } 
@@ -1134,7 +1341,7 @@ class CaseTimerEventViewer {
                             intervals.push(intervalObj);
                         }
 
-                        // return a new series
+                        // return a new interval series
                         return {
                             label: intervalConfig.groupLabelFn(intervalGroup.values[0]),
                             groupingKey: ct.Id,  // The case timer Id is a suitable grouping key
@@ -1144,44 +1351,114 @@ class CaseTimerEventViewer {
                 //console.log("timerIntervalSeriesArray: ", timerIntervalSeriesArray);
                 // end grouping of intervals
 
-                var getIntervalPointAvgDate = p => p.type === TimelineChart.TYPE.POINT ? p.at : new Date(p.from * 1 + (p.to - p.from)/2);
 
+                // Order and assign OrdinalId to Snapshots
+                ct.Snapshots.sort((a,b) => {
+                    // primary sort key is the snapshot time
+                    if (a.SnapshotTime < b.SnapshotTime) return -2;
+                    if (a.SnapshotTime > b.SnapshotTime) return 2;
+
+                    // secondary sort key is the modified time
+                    if (a.LastModified < b.LastModified) return -1;
+                    if (a.LastModified > b.LastModified) return 1;
+
+                    return 0;
+                });
+                // Number the snapshots
+                ct.Snapshots.forEach((ss, i) => { ss.OrdinalId = i+1; });
+
+                // For each snapshot, add a reference to the subsequent non-deried snapshot.
+                // This will represent the final non-derived state of the timer, for the purposes of displaying calculated times for each snapshot.
+                var subsequentNonDerivedSnapshot = {
+                    SnapshotTime: new Date(),
+                    OrdinalId: ct.Snapshots.length + 1,
+                    IsDerived: false,
+                    LastModified: new Date(),
+                    Id: null,
+                    SnapshotData: {
+                        CaseTimer: {
+                            CurrentEffectiveClockState: ct.CurrentEffectiveClockState,
+                            CurrentNonWorkingTimePeriodTypes: ct.CurrentNonWorkingTimePeriodTypes,
+                            ElapsedTime: ct.ElapsedTime,
+                            Offset: ct.Offset,
+                            RunTime: ct.RunTime,
+                            LastCalculated: ct.LastCalculated
+                        }
+                    }
+                };
+                var snapshotsReversed = ct.Snapshots.slice(0).reverse();
+                snapshotsReversed.forEach(ss => {
+                    ss.SubsequentNonDerivedSnapshot = subsequentNonDerivedSnapshot;
+                    if (!ss.IsDerived) subsequentNonDerivedSnapshot = ss;
+                });
+
+
+                // Create series for calculation intervals
+                var calculationIntervalsSeries = {
+                    label: `Calculation Intervals`,
+                    groupingKey: ct.Id,  // The case timer Id is a suitable grouping key
+                    data: []
+                };
+                ct.Snapshots.filter(x => !x.IsDerived)
+                    .forEach(ss => {
+                        var curSD = ss.SnapshotData;
+                        var nextSD = ss.SubsequentNonDerivedSnapshot.SnapshotData;
+                        var intervalObj = {
+                            type: TimelineChart.TYPE.INTERVAL,
+                            intervalType: 'CalculationInterval',
+                            customClass: '', //ic.customClass,
+                            label: '', //ic.intervalLabelFn(curEvt),
+                            from: curSD.CaseTimer.LastCalculated || curSD.CaseTimer.Started,
+                            to: nextSD.CaseTimer.LastCalculated,
+                            data: [curSD, nextSD],
+                            ids: [],
+                            onClick: null
+                        };
+                        calculationIntervalsSeries.data.push(intervalObj);
+                    });
+                // var ci_ss =  ct.Snapshots[0];
+                // while (ci_ss.SubsequentNonDerivedSnapshot) {
+                //     var data = [  ];
+                    
+                //     ci_ss = ci_ss.SubsequentNonDerivedSnapshot;
+                // }
+
+                
+                // Order and assign OrdinalId to Events
                 // Getting events sorted in an intuitive way is more complex than one might suppose.
                 // Here, we sort by the following things, in this particular order:
                 //  1. event date
                 //  2. intervals that each event is a part of
                 //  3. related snapshot time
+                var getIntervalPointAvgDate = p => p.type === TimelineChart.TYPE.POINT ? p.at : new Date(p.from * 1 + (p.to - p.from)/2);
                 ct.Events.sort((a,b) => {
                     // primary sort key is the event time
                     if (a.EventTime < b.EventTime) return -3;
                     if (a.EventTime > b.EventTime) return 3;
                     
+                    // tertiary sort key is the related snapshot time
+                    if (a.CaseTimerSnapshot.SnapshotTime*1 < b.CaseTimerSnapshot.SnapshotTime*1) return -2;
+                    if (a.CaseTimerSnapshot.SnapshotTime*1 > b.CaseTimerSnapshot.SnapshotTime*1) return 2;
+
                     // secondary sort key is the related interval time
                     var aAvgDate = getIntervalPointAvgDate(a.interval || a.point);
                     var bAvgDate = getIntervalPointAvgDate(b.interval || b.point);
-                    if (aAvgDate < bAvgDate) return -2;
-                    if (aAvgDate > bAvgDate) return 2;
-
-                    // tertiary sort key is the related snapshot time
-                    if (a.CaseTimerSnapshot.SnapshotTime < b.CaseTimerSnapshot.SnapshotTime) return -1;
-                    if (a.CaseTimerSnapshot.SnapshotTime > b.CaseTimerSnapshot.SnapshotTime) return 1;
+                    if (aAvgDate < bAvgDate) return -1;
+                    if (aAvgDate > bAvgDate) return 1;
 
                     return 0;
                 });
                 // Number the events
-                var ordinalId = 1;
-                ct.Events.forEach(evt => { evt.OrdinalId = ordinalId++; });
-                // // Sort by the number
-                // sortBy(ct.Events, evt => evt.OrdinalId);
+                ct.Events.forEach((evt, i) => { evt.OrdinalId = i+1; });
 
-                var allSeriesForTimer = [ timerEventsSeries, timerSnapshotsSeries ].concat(timerIntervalSeriesArray);
+                var allSeriesForTimer = [ timerEventsSeries, timerSnapshotsSeries, calculationIntervalsSeries].concat(timerIntervalSeriesArray);
 
                 return allSeriesForTimer;
             })
             // flatten the array of timeline data series arrays into a single array of TDS.
             .reduce((accumulator, currentValue) => accumulator.concat(currentValue));
 
-            // At this point, there will likely be 1+ series associated with each timer.
+            // At this point, there will be multiple series associated with each timer.
             // We want to provide some sort of visual grouping mechanism so that all series associated with the same case timer can be visually grouped.
             // Transform the group key to a 0-based index.
             var newGroupNumber = 0;
