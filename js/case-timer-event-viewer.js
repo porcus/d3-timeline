@@ -242,12 +242,18 @@ class CaseTimerEventViewer {
         d3.select('#entity-id')
             .on("keypress", function() { if(d3.event.keyCode === 13) submitForm(); });
 
+        function isValidDate(d) {
+            return d instanceof Date && !isNaN(d);
+        }
         
-        const ymdhmsfTimeParser = d3.utcParse("%Y-%m-%dT%H:%M:%S.%LZ");
+        const isoDateTimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?\Z$/;
+        const ymdhmsfTimeParser = d3.utcParse("%Y-%m-%dT%H:%M:%S.%fZ"); // microsecond precision parser
+        const ymdhmslTimeParser = d3.utcParse("%Y-%m-%dT%H:%M:%S.%LZ"); // millisecond precision parser
         const ymdhmsTimeParser = d3.utcParse("%Y-%m-%dT%H:%M:%SZ");
         function parseDateTime(dateString) {
-            return d3.isoParse(dateString) || dateString;
-            //return ymdhmsfTimeParser(dateString) || ymdhmsTimeParser(dateString) || dateString;
+            if (isoDateTimeRegex.test(dateString))
+                return d3.isoParse(dateString) || dateString;
+            return dateString;
         }
         const ymdhmsfTimeFormatter = d3.utcFormat("%Y-%m-%d %I:%M:%S.%L %p");
         const ymdhmsTimeFormatter = d3.utcFormat("%Y-%m-%d %H:%M:%S");
@@ -277,9 +283,10 @@ class CaseTimerEventViewer {
             () => {
                 new Tooltip(document.getElementById('snapshot-reminder'), {
                     placement: 'top', 
-                    title: `The data of each snapshot represents the state of the case timer, SLA, etc. at the time of the snapshot. 
-                        And timer-related values (e.g. CaseTimer.ElapsedTime, SLA.TimeRemaining, etc.) are updated after each non-derived snapshot is taken.
-                        This means that the timer-related values shown on each snapshot actually represent the state of affairs as of the SnapshotTime of the prior non-derived snapshot.
+                    title: `Snapshot data represents the state of the case timer, SLA, etc. at the time of a snapshot. 
+                        Live snapshots are captured <em>BEFORE</em> resolving case timer events and updating timer-related values (e.g. CaseTimer.ElapsedTime, SLA.TimeRemaining, etc.).  
+                        Derived snapshots are captured <em>during</em> case timer event resolution and represent intermediate states. 
+                        This means that time-related values of each snapshot reflect the state of affairs as of the prior live snapshot.
                         `, 
                     html: false,
                     // This fixes a conflict with Bootstrap's usage of popper  (i.e. it sets the opacity to 0 by default in _tooltip.scss)
@@ -415,12 +422,21 @@ class CaseTimerEventViewer {
 
             // Update visibility of sections
             d3.select('#case-timer-event-viewer-error').visible(caseDataToRender === null);
-            d3.select('#case-timer-event-viewer-content').visible(caseDataToRender !== null);
 
             // Validate input
             if (!caseDataToRender) { /*alert('case data was not provided.');*/ return; }
-    
-            let caseTimerTimelineData = transformCaseDataToTimelineData(caseDataToRender);
+
+            let caseTimerTimelineData = null;
+            try {
+                caseTimerTimelineData = transformCaseDataToTimelineData(caseDataToRender);
+            } catch (error) {
+                d3.select('#case-timer-event-viewer-content').visible(caseTimerTimelineData !== null);
+                alert("Input data failed to be processed correctly.  See JS console for possible errors.");
+                return;
+            }
+
+            d3.select('#case-timer-event-viewer-content').visible(caseTimerTimelineData !== null);
+
             console.log("Case data: ", caseDataToRender);
             console.log("Timeline data: ", caseTimerTimelineData);
 
@@ -473,20 +489,33 @@ class CaseTimerEventViewer {
             createJsonViewerPopup( caseTimerEvent.EventData, `Data for Case Timer Event: ${caseTimerEvent.EventIdentifierString}`  );
         }
 
+        // The following 5 methods are adapted from CaseTimerSnapshotData.cs :
+        // - timerIsUsedBySlaInSnapshotData
+        // - beforeSnapshotDataSerialized
+        // - afterSnapshotDataDeserialized
+        // - afterSnapshotDataSerialized
+        // - shareSnapshotDataReferences
+
+        function timerIsUsedBySlaInSnapshotData(ssd) {
+            return ssd.Sla != null && ssd.CaseTimer.CaseTimerType === 'Sla' && (ssd.Sla.CaseTimerId == ssd.CaseTimer.Id || ssd.Sla.CaseTimerId == "00000000-0000-0000-0000-000000000000");
+        }
+
         function beforeSnapshotDataSerialized(ssd) {
-            // If CaseTimer is for an SLA, then don't include redundant CaseTimer data.
-            // If CaseTimer is not for an SLA but if there is an SLA on the case, then do include its CaseTimer data, but don't include the Sla's CaseTimer's Case data.
-            if (ssd.CaseTimer.CaseTimerType === 'Sla')
+            if (ssd.Sla != null)
             {
-                // If the SLA hasn't already been removed
-                if (ssd.Sla != null)
+                if (!timerIsUsedBySlaInSnapshotData(ssd))
+                    console.log("Don't clear Sla.CaseTimer.");
+
+                // If the CaseTimer is used by an SLA, and if that SLA is the SLA on this snapshot, then don't include redundant CaseTimer data on the SLA.
+                // If CaseTimer is not used by an SLA, but if there is an SLA on the case, then include the SLA's CaseTimer data, but don't include the Sla's CaseTimer's Case data.
+                if (timerIsUsedBySlaInSnapshotData(ssd))
                 {
                     ssd.Sla.CaseTimer = "(see SnapshotData.CaseTimer)";
                 }
-            }
-            else if (ssd.Sla != null)
-            {
-                ssd.Sla.CaseTimer.Case = "(see SnapshotData.CaseTimer.Case)";
+                else
+                {
+                    ssd.Sla.CaseTimer.Case = "(see SnapshotData.CaseTimer.Case)";
+                }
             }
         }
 
@@ -499,25 +528,27 @@ class CaseTimerEventViewer {
         }
 
         function shareSnapshotDataReferences(ssd) {
-            // Share Case/CaseTimer data, depending upon whether an SLA is present.
-            //  - If CaseTimer is for an SLA, then share the CaseTimer data with the SLA.
-            //  - If CaseTimer is not for an SLA but if there is an SLA on the case, then share the Case data with the Sla's CaseTimer.
-            if (ssd.CaseTimer.CaseTimerType === 'Sla')
+            if (ssd.Sla != null)
             {
-                // If SLA hasn't already been removed 
-                if (ssd.Sla != null)
+                if (!timerIsUsedBySlaInSnapshotData(ssd))
+                    console.log("Don't restore the CaseTimer to the Sla, because it doesn't belong.");
+
+                // If the CaseTimer is used by an SLA, and if that SLA is the SLA on this snapshot, then share the CaseTimer data with the SLA.
+                // Otherwise, share the CaseTimer's Case reference with the Sla's CaseTimer.
+                if (timerIsUsedBySlaInSnapshotData(ssd))
                 {
                     ssd.Sla.CaseTimer = ssd.CaseTimer;
                 }
-            }
-            else if (ssd.Sla != null)
-            {
-                ssd.Sla.CaseTimer.Case = ssd.CaseTimer.Case;
-            }
-            // If an SLA is present, then share its data with the Case.
-            if (ssd.Sla != null && ssd.Sla.CaseTimer.Case.Sla != ssd.Sla)
-            {
-                ssd.Sla.CaseTimer.Case.Sla = ssd.Sla;
+                else
+                {
+                    ssd.Sla.CaseTimer.Case = ssd.CaseTimer.Case;
+                }
+
+                // If CaseTimer is not used by an SLA, but if there is an SLA on the case, then share the Sla reference with the Sla's CaseTimer's Case.
+                if (ssd.Sla.CaseTimer.Case.Sla != ssd.Sla)
+                {
+                    ssd.Sla.CaseTimer.Case.Sla = ssd.Sla;
+                }
             }
         }
 
@@ -691,7 +722,8 @@ class CaseTimerEventViewer {
             var caseTimer = caseDataModel.CaseTimerMap.get(caseTimerId);
 
             // Identify events corresponding to selected snapshots
-            var selectedEvents = selectedSnapshots.selectMany(ss => caseDataModel.EventsBySnapshotIdLookup.get(ss.Id)) || [];
+            // It's possible that no events are resolved for one of the given snapshot Id's.
+            var selectedEvents = selectedSnapshots.selectMany(ss => caseDataModel.EventsBySnapshotIdLookup.get(ss.Id) || []) || [];
 
             highlightNodesInTimeline(selectedSnapshots, selectedEvents);
 
@@ -967,31 +999,6 @@ class CaseTimerEventViewer {
             return '<em>(no value resolver defined for this type)</em>'
         }
 
-        // function normalizeProperties(caseTimerArray)
-        // {
-        //     var convertDateProperties = function(obj, propertyNamesArray)
-        //     {
-        //         if (!obj) return;
-        //         propertyNamesArray.forEach(pn => {
-        //             var value = obj[pn];
-        //             if (value !== null && typeof value === 'string')
-        //                 obj[pn] = parseDateTime(value);
-        //         });
-        //     };
-
-        //     caseTimerArray.forEach(ct => {
-        //         ct.Events.forEach(e => {
-        //             convertDateProperties(e, [ "EventTime", "LastModified" ]);
-        //             convertDateProperties(e.CaseTimerSnapshot, [ "SnapshotTime", "LastModified" ]);
-        //             var ssd = e.CaseTimerSnapshot.SnapshotData;
-        //             convertDateProperties(ssd, [ "SnapshotTime", "LastModified" ]);
-        //             convertDateProperties(ssd.CaseTimer, [ "LastCalculated", "LastModified", "Started", "Stopped" ]);
-        //             convertDateProperties(ssd.Sla, [ "EstimatedNextControlPointDate", "EstimatedTargetResolutionDate", "LastModified" ]);
-        //         });
-        //         convertDateProperties(ct, [ "LastCalculated", "LastModified", "Started", "Stopped" ]);
-        //     });
-        // }
-
         function restoreReferencesInCaseTimerObjectGraph(caseTimerArray)
         {
             // normalize data
@@ -1021,6 +1028,7 @@ class CaseTimerEventViewer {
                     if (!!val)
                     {
                         if (typeof val === "object") eachRecursive(val);
+                        // Parse string into a Date object, or leave the string unchanged.
                         if (typeof val === "string") obj[key] = parseDateTime(val);
                     }
                 });
@@ -1032,9 +1040,6 @@ class CaseTimerEventViewer {
         {
             if (!caseDataToTransform.Timers.length) return [];
             
-            // create a copy of the data
-            //let caseTimerArray = JSON.parse(JSON.stringify(caseDataToTransform.Timers));
-
             // Ensure that timers are ordered by when they were started
             let caseTimerArray = sortBy(caseDataToTransform.Timers, _ => _.Started);
 
@@ -1046,25 +1051,36 @@ class CaseTimerEventViewer {
             });
 
             normalizeDatesRecursively(caseDataToTransform);
-            //normalizeProperties(caseTimerArray);
 
-            restoreReferencesInCaseTimerObjectGraph(caseTimerArray);
+            //restoreReferencesInCaseTimerObjectGraph(caseTimerArray);
 
-            // Flatten the events
+            // Flatten the events.  This will be a list of all events for the case.
             var allEvents = caseTimerArray.selectMany(t => t.Events);
-            // Create a D3 map of case timer Id to case timer
+            // Flatten the events.  This will be a list of all snapshots for the case.
+            var allSnapshots = caseTimerArray.selectMany(t => t.Snapshots);
+
+            // Create a D3 map of case timer Id to case timer (distinct values only)
             caseDataToTransform.CaseTimerMap = d3.map(caseDataToTransform.Timers, ct => ct.Id);
             // Create a D3 map of snapshot Id to snapshot (distinct values only).
-            var caseTimerSnapshotsMap = d3.map(allEvents.map(cte => cte.CaseTimerSnapshot), cts => cts.Id);
-            // Replace snapshot data with distinct snapshot objects (so we won't have different copies of the same snapshot floating around).
-            allEvents.forEach(cte => cte.CaseTimerSnapshot = caseTimerSnapshotsMap.get(cte.CaseTimerSnapshot.Id));
+            caseDataToTransform.SnapshotMap = d3.map(allSnapshots, cts => cts.Id);
+
+            // Fix links within each snapshot data
+            allSnapshots.forEach(ss => {
+                afterSnapshotDataDeserialized(ss.SnapshotData);
+            });
+
+            // Link each case timer event to the case timer that it belongs to
+            caseTimerArray.forEach(ct => {
+                ct.Events.forEach(e => e.CaseTimer = ct);
+            });
+
+            // Convert CaseTimerSnapshot shallow references to references to objects
+            allEvents.forEach(cte => {
+                cte.CaseTimerSnapshot = caseDataToTransform.SnapshotMap.get(cte.CaseTimerSnapshot.Id)
+            });
             // Make array of snapshots accessible from case data.
-            caseDataToTransform.SnapshotMap = caseTimerSnapshotsMap;
-            caseDataToTransform.Snapshots = sortBy(caseTimerSnapshotsMap.values(), ss => ss.SnapshotTime, true);
-            // Create a D3 map of case timer Id's to snapshots
-//            var snapshotsByCaseTimerIds = d3.nest().key(cts => cts.SnapshotData.CaseTimer.Id).map(caseDataToTransform.Snapshots);
+            caseDataToTransform.Snapshots = sortBy(caseDataToTransform.SnapshotMap.values(), ss => ss.SnapshotTime, true);
             // Set snapshots array on each case timer object (to facilitate access later)
-//            caseTimerArray.forEach(ct => ct.Snapshots = sortBy(snapshotsByCaseTimerIds.get(ct.Id), ss => ss.SnapshotTime, true));
             caseTimerArray.forEach(ct => ct.Snapshots = sortBy(ct.Snapshots, ss => ss.SnapshotTime, true));
             // Create a D3 nested map from case timer snapshot Id to events
             caseDataToTransform.EventsBySnapshotIdLookup = d3.nest().key(cte => cte.CaseTimerSnapshot.Id).map(allEvents);
@@ -1116,7 +1132,7 @@ class CaseTimerEventViewer {
                 // As we group these events by SnapshotTime into points, we have to treat the SnapshotTime as an integral number of milliseconds.
                 // Otherwise, the milliseconds will be lost if we just use the SnapshotTime (Date), because the d3.nest.key resolver will convert the returned object into a string.
                 var caseTimerSnapshotPoints = (d3.nest().key(cts => cts.SnapshotTime*1).entries(ct.Snapshots))
-                    // map d3 groupings (of { key: "", values: [] }) into an array of points for the timeline
+                    // Map d3 groupings (of { key: "", values: [] }) into an array of points for the timeline
                     .map(d => {
                         var snapshotTime = new Date(d.key*1); // convert key from string to a number to a date
                         var snapshotsAtTime = d.values;
@@ -1124,21 +1140,24 @@ class CaseTimerEventViewer {
                         function generateSnapshotTipHtmlDetails(snapshots) {
                             // the current snapshot to use for this point
                             var ss = snapshots.find(ss => !ss.IsDerived) || snapshots[0];
-                            // resolve the subsequent non-derived snapshot
-                            var sndss = ss.SubsequentNonDerivedSnapshot;
-                            if (!sndss) return '';
-                            var timer = sndss.SnapshotData.CaseTimer;
+                            // resolve a non-derived snapshot from the current snapshot or a subsequent snapshot
+                            var ndss = !ss.IsDerived ? ss : ss.SubsequentNonDerivedSnapshot;
+                            if (!ndss) return '';
+                            var timer = ndss.SnapshotData.CaseTimer;
                             var timerInfo = !timer ? '' : `
-                                <h5>Timer</h5> 
+                                <div class="h6 mt-1 mb-0"> Timer <span class="badge badge-secondary">${timer.Id}</span> </div>
                                 State: ${timer.CurrentEffectiveClockState}<br>
                                 Current NWTP Types: ${timer.CurrentNonWorkingTimePeriodTypes}<br>
                                 Elapsed Time: ${timer.ElapsedTime} (${timer.Offset} + ${timer.RunTime})<br>
                                 Last Calculated: ${formatDateTime(timer.LastCalculated)}<br>
                             `;
-                            var sla = sndss.SnapshotData.Sla;
-                            var slaInfo = !sla ? '' : `
-                                <h5>SLA</h5> 
+                            var sla = ndss.SnapshotData.Sla;
+                            // Don't generate content for the SLA section if the SLA's timer doesn't match the timer above. This only 
+                            // happens when an SLA is replaced with a new one. 
+                            var slaInfo = !sla || (sla.CaseTimerId != "00000000-0000-0000-0000-000000000000" && sla.CaseTimerId != timer.Id) ? '' : `
+                                <div class="h6 mt-1 mb-0"> SLA <span class="badge badge-secondary">${sla.Id}</span> </div>
                                 Status: ${sla.Status}<br>
+                                If replaced, remaining time allocation policy:  ${sla.SlaReplacementElapsedTimeAllocationPolicy}<br>
                                 <table class="table table-sm">
                                     <thead>
                                         <tr>
@@ -1160,24 +1179,25 @@ class CaseTimerEventViewer {
                                         <tr>
                                             <th scope="row">SLA Target Resolution</th>
                                             <td>${sla.TargetResolutionDuration}</td>
-                                            <td>${sla.TimeRemaining}</td>
+                                            <td>${sla.TimeRemaining || ''}</td>
                                             <td>${formatDateTime(sla.EstimatedTargetResolutionDate)}</td>
                                             <td>${sla.HasTargetResolutionBreached}</td>
                                         </tr>
                                         <tr>
                                             <th scope="row">Next Control Point</th>
                                             <td></td>
-                                            <td>${sla.TimeUntilNextControlPoint}</td>
+                                            <td>${sla.TimeUntilNextControlPoint || 'n/a'}</td>
                                             <td>${formatDateTime(sla.EstimatedNextControlPointDate)}</td>
                                             <td></td>
                                         </tr>
                                     </tbody>
                                 </table>
                                 `;
-                            return `<div><em>The following comes from ${!sndss.Id ? 'the current state of this case timer' : `subsequent non-derived snapshot ${sndss.Id}`}.</em></div>
+                            return `<div class="h6 mt-1 mb-0"> Snapshot <span class="badge badge-secondary">${ss.Id}</span> </div>
+                                    <div><em>The following data comes from ${ss == ndss ? 'the state of this non-derived snapshot' : `subsequent non-derived snapshot ${ndss.Id}`}.</em></div>
                                     ${timerInfo}
                                     ${slaInfo}
-                                    ${ss.IsDerived ? '<div><strong><em>NOTE: Because this snapshot is derived, the times above may not be accurate.  They actually describe the state of affairs as of the prior non-derived snapshot.</em></strong></div>' : ''}
+                                    ${ss.IsDerived ? '<div><strong><em>NOTE: Because this snapshot is derived, the times above are probably inaccurate.  They actually describe the state of affairs as of the subsequent non-derived snapshot.</em></strong></div>' : ''}
                                     `;
                         }
                         // Create point data structure
@@ -1185,10 +1205,10 @@ class CaseTimerEventViewer {
                             type: TimelineChart.TYPE.POINT,
                             //customClass: 'point-white',
                             label: function() {
+                                // resolve first snapshot that is not derived (or just use the first one of the group)
+                                // NOTE:  This assumes that we won't have > 1 snapshot for a given point in time.
                                 var ss = snapshotsAtTime.find(ss => !ss.IsDerived) || snapshotsAtTime[0];
-                                return `📷 ${ss.IsDerived ? 'Derived' : 'Live'} Snapshot ${ss.OrdinalId}: ${ss.Id}`;
-                                // return `${snapshotsAtTime.length} Snapshot${snapshotsAtTime.length == 1 ? '' : 's'}`+
-                                //     snapshotsAtTime.map(e => `<br>📷 ${e.OrdinalId}: ${e.IsDerived ? 'Derived' : 'Live'}: ${e.Id}`).join('');
+                                return `📷 ${ss.IsDerived ? 'Derived' : 'Live'} Snapshot ${ss.OrdinalId}`;
                             },
                             details : function() { return generateSnapshotTipHtmlDetails(snapshotsAtTime); },
                             at: snapshotTime,
@@ -1264,8 +1284,6 @@ class CaseTimerEventViewer {
                         customClass: 'interval-white',
                     },
                 ];
-                //var intervalStartEventIds = intervalConfigs.map(ic => ic.startEventId);
-                //var intervalEndEventIds = intervalConfigs.map(ic => ic.endEventId);
 
                 // Define a function to create a grouping key from an event.  Each event will end up in at most 1 group.
                 let eventIntervalGroupingKeyFn = evt => {
@@ -1349,7 +1367,7 @@ class CaseTimerEventViewer {
                         };
                     });
                 //console.log("timerIntervalSeriesArray: ", timerIntervalSeriesArray);
-                // end grouping of intervals
+                // End grouping of intervals
 
 
                 // Order and assign OrdinalId to Snapshots
@@ -1367,7 +1385,6 @@ class CaseTimerEventViewer {
                 // Number the snapshots
                 ct.Snapshots.forEach((ss, i) => { ss.OrdinalId = i+1; });
 
-                // For each snapshot, add a reference to the subsequent non-deried snapshot.
                 // This will represent the final non-derived state of the timer, for the purposes of displaying calculated times for each snapshot.
                 var subsequentNonDerivedSnapshot = {
                     SnapshotTime: new Date(),
@@ -1386,13 +1403,21 @@ class CaseTimerEventViewer {
                         }
                     }
                 };
+                // For each snapshot, add a reference to the subsequent non-deried snapshot.
                 var snapshotsReversed = ct.Snapshots.slice(0).reverse();
                 snapshotsReversed.forEach(ss => {
                     ss.SubsequentNonDerivedSnapshot = subsequentNonDerivedSnapshot;
                     if (!ss.IsDerived) subsequentNonDerivedSnapshot = ss;
                 });
+                // For each snapshot, add a reference to the prior non-deried snapshot.
+                var priorNonDerivedSnapshot = {};
+                ct.Snapshots.forEach(ss => {
+                    ss.PriorNonDerivedSnapshot = priorNonDerivedSnapshot;
+                    if (!ss.IsDerived) priorNonDerivedSnapshot = ss;
+                });
 
 
+                // TODO:  Fix overlapping calculation intervals below
                 // Create series for calculation intervals
                 var calculationIntervalsSeries = {
                     label: `Calculation Intervals`,
@@ -1414,14 +1439,10 @@ class CaseTimerEventViewer {
                             ids: [],
                             onClick: null
                         };
-                        calculationIntervalsSeries.data.push(intervalObj);
+                        // If interval is valid
+                        if (!!intervalObj.from && !!intervalObj.to)
+                            calculationIntervalsSeries.data.push(intervalObj);
                     });
-                // var ci_ss =  ct.Snapshots[0];
-                // while (ci_ss.SubsequentNonDerivedSnapshot) {
-                //     var data = [  ];
-                    
-                //     ci_ss = ci_ss.SubsequentNonDerivedSnapshot;
-                // }
 
                 
                 // Order and assign OrdinalId to Events
@@ -1455,7 +1476,7 @@ class CaseTimerEventViewer {
 
                 return allSeriesForTimer;
             })
-            // flatten the array of timeline data series arrays into a single array of TDS.
+            // Now flatten the array of timeline data series arrays into a single array of TDS.
             .reduce((accumulator, currentValue) => accumulator.concat(currentValue));
 
             // At this point, there will be multiple series associated with each timer.

@@ -191,6 +191,7 @@
                     translucentOverlay.attr('width', interactionWidth);
                     clipPathRect.attr("width", interactionWidth);
                     interactionRect.attr("width", interactionWidth);
+
                     xTimeScaleOriginal.range([groupWidth, width]);
                     xTimeScaleForContent.range([groupWidth, width]);
                     xAxisScaled = xAxis.scale(xTimeScaleForContent);
@@ -255,8 +256,6 @@
 
             // If set, options.tipContentGenerator should have the following form: function(timelineObjectForWhichToRenderTipContent)
             if (options.tipContentGenerator) {
-                //if (window.Tooltip)
-                //{
                 var tip = function () {
                     // The container element will hold the placeholder element and the tooltip element
                     // The reason we need this is because of how tooltip.js resolves the tooltip-inner element when updating the tooltip "title".
@@ -276,10 +275,6 @@
                             placement: 'top',
                             title: 'initial value',
                             html: true,
-                            // template: '<div class="tooltip bs-tooltip-top" role="tooltip">' +
-                            //     '<div class="tooltip-arrow arrow"></div>' +
-                            //     '<div class="tooltip-inner"></div>' +
-                            //     '</div>',
                             popperOptions: {
                                 onCreate: function onCreate(p) {
                                     p.instance.popper.classList.add('show');
@@ -287,10 +282,8 @@
                                 modifiers: {
                                     flip: {
                                         behavior: ['top', 'bottom', 'left', 'right']
-                                        // preventOverflow: {
-                                        //     boundariesElement: 
-                                        // }
-                                    } }
+                                    }
+                                }
                             }
                         });
                         return _tooltip;
@@ -301,6 +294,7 @@
                     }
 
                     var tipContentGenerator;
+
                     result.html = function (val) {
                         tipContentGenerator = val;
                     };
@@ -317,10 +311,6 @@
                         var height = Math.min(bottom - top, rect.height);
                         var width = Math.min(right - left, rect.width);
 
-                        // console.log('top', rect.top, cliprect.top);
-                        // console.log('left', rect.left, cliprect.left);
-                        // console.log('right', rect.right, cliprect.right);
-                        // console.log('bottom', rect.bottom, cliprect.bottom);
                         placeholderEl.style('top', top + 'px').style('left', left + 'px').style('height', height + 'px').style('width', width + 'px');
                         // update the content of the tooltip to match the data
                         var html = tipContentGenerator(d);
@@ -337,36 +327,10 @@
                     return result;
                 }();
 
+                // Set fn for generating tip content
                 tip.html(options.tipContentGenerator);
                 dots.on('mouseover', tip.show).on('mouseout', tip.hide);
                 intervals.on('mouseover', tip.show).on('mouseout', tip.hide);
-                //}
-
-                // if (d3.tip) {
-                //     let tip = d3.tip().attr('class', 'd3-tip').html(options.tipContentGenerator).offset([-15, 0]);;
-                //     svg_g.call(tip);
-                //     dots.on('mouseover', tip.show); //.on('mouseout', tip.hide);
-                //     intervals.on('mouseover', showIntervalTip).on('mouseout', tip.hide);
-
-                //     function showIntervalTip(d, i){
-                //         var x = d3.event.x, y = d3.event.y;
-                //         var d3_event_x = d3.event.x;
-
-                //         tip.show(d, i);
-
-                //         function updateWidth() {
-                //             //console.log([ parseFloat(tip.style('width')), parseFloat(d3.select('.d3-tip.n').style('width')), d3.select('.d3-tip.n').node().clientWidth]);
-                //             var tipWidth = parseFloat(tip.style('width'));
-                //             //console.log('tip width: ', tipWidth);
-                //             tip.style('left', d3_event_x - (tipWidth/2) + 'px');
-                //         }
-
-                //         updateWidth();
-                //         setTimeout(updateWidth, 1);
-                //     }
-                // } else {
-                //     console.error('Please make sure you have d3.tip included as dependency (https://github.com/Caged/d3-tip)');
-                // }
             }
 
             zoomed();
@@ -492,11 +456,9 @@
                 }).text(function (d) {
                     var positionData = getTextPositionData.call(this, d);
                     var percent = (positionData.width - options.textTruncateThreshold) / positionData.textWidth;
-                    // (typeof(d.label) === 'function' ? d.label(d) : d.label) || ''
                     var labelText = d.label || ''; //typeof(d.label)==="string" ? d.label : typeof(d.label)==="function" ? d.label(d) : '';
                     if (percent < 1) {
                         if (positionData.width > options.textTruncateThreshold) {
-                            //return d.label.substr(0, Math.floor(d.label.length * percent)) + '...';
                             return labelText.substr(0, Math.floor(labelText.length * percent)) + '...';
                         } else {
                             return '';
@@ -631,7 +593,7 @@
                     }
 
                     // Perform translation transformation with animation
-                    translateToDate(itemTime, true);
+                    translateToDate(itemTime, false);
                 }
 
                 return {

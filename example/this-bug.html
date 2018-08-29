@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <div id="target">:)</div>
+        <script>
+            var execute = function(callback, node) {
+                callback.call(node);
+                return this
+            };
+
+            function widget() {
+                var self = this;
+
+                execute(function() {
+                    var self = this;
+                    console.log(self === this);
+                }, document.getElementById('target'));
+            }
+
+            var w = new widget();
+        </script>
+    </body>
+</html>

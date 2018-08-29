@@ -179,11 +179,17 @@
                 if (d3.event.keyCode === 13) submitForm();
             });
 
-            var ymdhmsfTimeParser = d3.utcParse("%Y-%m-%dT%H:%M:%S.%LZ");
+            function isValidDate(d) {
+                return d instanceof Date && !isNaN(d);
+            }
+
+            var isoDateTimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?\Z$/;
+            var ymdhmsfTimeParser = d3.utcParse("%Y-%m-%dT%H:%M:%S.%fZ"); // microsecond precision parser
+            var ymdhmslTimeParser = d3.utcParse("%Y-%m-%dT%H:%M:%S.%LZ"); // millisecond precision parser
             var ymdhmsTimeParser = d3.utcParse("%Y-%m-%dT%H:%M:%SZ");
             function parseDateTime(dateString) {
-                return d3.isoParse(dateString) || dateString;
-                //return ymdhmsfTimeParser(dateString) || ymdhmsTimeParser(dateString) || dateString;
+                if (isoDateTimeRegex.test(dateString)) return d3.isoParse(dateString) || dateString;
+                return dateString;
             }
             var ymdhmsfTimeFormatter = d3.utcFormat("%Y-%m-%d %I:%M:%S.%L %p");
             var ymdhmsTimeFormatter = d3.utcFormat("%Y-%m-%d %H:%M:%S");
@@ -213,7 +219,7 @@
             }, function () {
                 new Tooltip(document.getElementById('snapshot-reminder'), {
                     placement: 'top',
-                    title: 'The data of each snapshot represents the state of the case timer, SLA, etc. at the time of the snapshot. \n                        And timer-related values (e.g. CaseTimer.ElapsedTime, SLA.TimeRemaining, etc.) are updated after each non-derived snapshot is taken.\n                        This means that the timer-related values shown on each snapshot actually represent the state of affairs as of the SnapshotTime of the prior non-derived snapshot.\n                        ',
+                    title: 'Snapshot data represents the state of the case timer, SLA, etc. at the time of a snapshot. \n                        Live snapshots are captured <em>BEFORE</em> resolving case timer events and updating timer-related values (e.g. CaseTimer.ElapsedTime, SLA.TimeRemaining, etc.).  \n                        Derived snapshots are captured <em>during</em> case timer event resolution and represent intermediate states. \n                        This means that time-related values of each snapshot reflect the state of affairs as of the prior live snapshot.\n                        ',
                     html: false,
                     // This fixes a conflict with Bootstrap's usage of popper  (i.e. it sets the opacity to 0 by default in _tooltip.scss)
                     popperOptions: {
@@ -410,14 +416,23 @@
 
                 // Update visibility of sections
                 d3.select('#case-timer-event-viewer-error').visible(caseDataToRender === null);
-                d3.select('#case-timer-event-viewer-content').visible(caseDataToRender !== null);
 
                 // Validate input
                 if (!caseDataToRender) {
                     /*alert('case data was not provided.');*/return;
                 }
 
-                var caseTimerTimelineData = transformCaseDataToTimelineData(caseDataToRender);
+                var caseTimerTimelineData = null;
+                try {
+                    caseTimerTimelineData = transformCaseDataToTimelineData(caseDataToRender);
+                } catch (error) {
+                    d3.select('#case-timer-event-viewer-content').visible(caseTimerTimelineData !== null);
+                    alert("Input data failed to be processed correctly.  See JS console for possible errors.");
+                    return;
+                }
+
+                d3.select('#case-timer-event-viewer-content').visible(caseTimerTimelineData !== null);
+
                 console.log("Case data: ", caseDataToRender);
                 console.log("Timeline data: ", caseTimerTimelineData);
 
@@ -467,16 +482,28 @@
                 createJsonViewerPopup(caseTimerEvent.EventData, 'Data for Case Timer Event: ' + caseTimerEvent.EventIdentifierString);
             }
 
+            // The following 5 methods are adapted from CaseTimerSnapshotData.cs :
+            // - timerIsUsedBySlaInSnapshotData
+            // - beforeSnapshotDataSerialized
+            // - afterSnapshotDataDeserialized
+            // - afterSnapshotDataSerialized
+            // - shareSnapshotDataReferences
+
+            function timerIsUsedBySlaInSnapshotData(ssd) {
+                return ssd.Sla != null && ssd.CaseTimer.CaseTimerType === 'Sla' && (ssd.Sla.CaseTimerId == ssd.CaseTimer.Id || ssd.Sla.CaseTimerId == "00000000-0000-0000-0000-000000000000");
+            }
+
             function beforeSnapshotDataSerialized(ssd) {
-                // If CaseTimer is for an SLA, then don't include redundant CaseTimer data.
-                // If CaseTimer is not for an SLA but if there is an SLA on the case, then do include its CaseTimer data, but don't include the Sla's CaseTimer's Case data.
-                if (ssd.CaseTimer.CaseTimerType === 'Sla') {
-                    // If the SLA hasn't already been removed
-                    if (ssd.Sla != null) {
+                if (ssd.Sla != null) {
+                    if (!timerIsUsedBySlaInSnapshotData(ssd)) console.log("Don't clear Sla.CaseTimer.");
+
+                    // If the CaseTimer is used by an SLA, and if that SLA is the SLA on this snapshot, then don't include redundant CaseTimer data on the SLA.
+                    // If CaseTimer is not used by an SLA, but if there is an SLA on the case, then include the SLA's CaseTimer data, but don't include the Sla's CaseTimer's Case data.
+                    if (timerIsUsedBySlaInSnapshotData(ssd)) {
                         ssd.Sla.CaseTimer = "(see SnapshotData.CaseTimer)";
+                    } else {
+                        ssd.Sla.CaseTimer.Case = "(see SnapshotData.CaseTimer.Case)";
                     }
-                } else if (ssd.Sla != null) {
-                    ssd.Sla.CaseTimer.Case = "(see SnapshotData.CaseTimer.Case)";
                 }
             }
 
@@ -489,20 +516,21 @@
             }
 
             function shareSnapshotDataReferences(ssd) {
-                // Share Case/CaseTimer data, depending upon whether an SLA is present.
-                //  - If CaseTimer is for an SLA, then share the CaseTimer data with the SLA.
-                //  - If CaseTimer is not for an SLA but if there is an SLA on the case, then share the Case data with the Sla's CaseTimer.
-                if (ssd.CaseTimer.CaseTimerType === 'Sla') {
-                    // If SLA hasn't already been removed 
-                    if (ssd.Sla != null) {
+                if (ssd.Sla != null) {
+                    if (!timerIsUsedBySlaInSnapshotData(ssd)) console.log("Don't restore the CaseTimer to the Sla, because it doesn't belong.");
+
+                    // If the CaseTimer is used by an SLA, and if that SLA is the SLA on this snapshot, then share the CaseTimer data with the SLA.
+                    // Otherwise, share the CaseTimer's Case reference with the Sla's CaseTimer.
+                    if (timerIsUsedBySlaInSnapshotData(ssd)) {
                         ssd.Sla.CaseTimer = ssd.CaseTimer;
+                    } else {
+                        ssd.Sla.CaseTimer.Case = ssd.CaseTimer.Case;
                     }
-                } else if (ssd.Sla != null) {
-                    ssd.Sla.CaseTimer.Case = ssd.CaseTimer.Case;
-                }
-                // If an SLA is present, then share its data with the Case.
-                if (ssd.Sla != null && ssd.Sla.CaseTimer.Case.Sla != ssd.Sla) {
-                    ssd.Sla.CaseTimer.Case.Sla = ssd.Sla;
+
+                    // If CaseTimer is not used by an SLA, but if there is an SLA on the case, then share the Sla reference with the Sla's CaseTimer's Case.
+                    if (ssd.Sla.CaseTimer.Case.Sla != ssd.Sla) {
+                        ssd.Sla.CaseTimer.Case.Sla = ssd.Sla;
+                    }
                 }
             }
 
@@ -653,8 +681,9 @@
                 var caseTimer = caseDataModel.CaseTimerMap.get(caseTimerId);
 
                 // Identify events corresponding to selected snapshots
+                // It's possible that no events are resolved for one of the given snapshot Id's.
                 var selectedEvents = selectedSnapshots.selectMany(function (ss) {
-                    return caseDataModel.EventsBySnapshotIdLookup.get(ss.Id);
+                    return caseDataModel.EventsBySnapshotIdLookup.get(ss.Id) || [];
                 }) || [];
 
                 highlightNodesInTimeline(selectedSnapshots, selectedEvents);
@@ -908,31 +937,6 @@
                 return '<em>(no value resolver defined for this type)</em>';
             }
 
-            // function normalizeProperties(caseTimerArray)
-            // {
-            //     var convertDateProperties = function(obj, propertyNamesArray)
-            //     {
-            //         if (!obj) return;
-            //         propertyNamesArray.forEach(pn => {
-            //             var value = obj[pn];
-            //             if (value !== null && typeof value === 'string')
-            //                 obj[pn] = parseDateTime(value);
-            //         });
-            //     };
-
-            //     caseTimerArray.forEach(ct => {
-            //         ct.Events.forEach(e => {
-            //             convertDateProperties(e, [ "EventTime", "LastModified" ]);
-            //             convertDateProperties(e.CaseTimerSnapshot, [ "SnapshotTime", "LastModified" ]);
-            //             var ssd = e.CaseTimerSnapshot.SnapshotData;
-            //             convertDateProperties(ssd, [ "SnapshotTime", "LastModified" ]);
-            //             convertDateProperties(ssd.CaseTimer, [ "LastCalculated", "LastModified", "Started", "Stopped" ]);
-            //             convertDateProperties(ssd.Sla, [ "EstimatedNextControlPointDate", "EstimatedTargetResolutionDate", "LastModified" ]);
-            //         });
-            //         convertDateProperties(ct, [ "LastCalculated", "LastModified", "Started", "Stopped" ]);
-            //     });
-            // }
-
             function restoreReferencesInCaseTimerObjectGraph(caseTimerArray) {
                 // normalize data
                 caseTimerArray.forEach(function (ct) {
@@ -959,6 +963,7 @@
                     d3.map(obj).each(function (val, key) {
                         if (!!val) {
                             if ((typeof val === 'undefined' ? 'undefined' : _typeof(val)) === "object") eachRecursive(val);
+                            // Parse string into a Date object, or leave the string unchanged.
                             if (typeof val === "string") obj[key] = parseDateTime(val);
                         }
                     });
@@ -968,9 +973,6 @@
 
             function transformCaseDataToTimelineData(caseDataToTransform) {
                 if (!caseDataToTransform.Timers.length) return [];
-
-                // create a copy of the data
-                //let caseTimerArray = JSON.parse(JSON.stringify(caseDataToTransform.Timers));
 
                 // Ensure that timers are ordered by when they were started
                 var caseTimerArray = sortBy(caseDataToTransform.Timers, function (_) {
@@ -987,37 +989,48 @@
                 });
 
                 normalizeDatesRecursively(caseDataToTransform);
-                //normalizeProperties(caseTimerArray);
 
-                restoreReferencesInCaseTimerObjectGraph(caseTimerArray);
+                //restoreReferencesInCaseTimerObjectGraph(caseTimerArray);
 
-                // Flatten the events
+                // Flatten the events.  This will be a list of all events for the case.
                 var allEvents = caseTimerArray.selectMany(function (t) {
                     return t.Events;
                 });
-                // Create a D3 map of case timer Id to case timer
+                // Flatten the events.  This will be a list of all snapshots for the case.
+                var allSnapshots = caseTimerArray.selectMany(function (t) {
+                    return t.Snapshots;
+                });
+
+                // Create a D3 map of case timer Id to case timer (distinct values only)
                 caseDataToTransform.CaseTimerMap = d3.map(caseDataToTransform.Timers, function (ct) {
                     return ct.Id;
                 });
                 // Create a D3 map of snapshot Id to snapshot (distinct values only).
-                var caseTimerSnapshotsMap = d3.map(allEvents.map(function (cte) {
-                    return cte.CaseTimerSnapshot;
-                }), function (cts) {
+                caseDataToTransform.SnapshotMap = d3.map(allSnapshots, function (cts) {
                     return cts.Id;
                 });
-                // Replace snapshot data with distinct snapshot objects (so we won't have different copies of the same snapshot floating around).
+
+                // Fix links within each snapshot data
+                allSnapshots.forEach(function (ss) {
+                    afterSnapshotDataDeserialized(ss.SnapshotData);
+                });
+
+                // Link each case timer event to the case timer that it belongs to
+                caseTimerArray.forEach(function (ct) {
+                    ct.Events.forEach(function (e) {
+                        return e.CaseTimer = ct;
+                    });
+                });
+
+                // Convert CaseTimerSnapshot shallow references to references to objects
                 allEvents.forEach(function (cte) {
-                    return cte.CaseTimerSnapshot = caseTimerSnapshotsMap.get(cte.CaseTimerSnapshot.Id);
+                    cte.CaseTimerSnapshot = caseDataToTransform.SnapshotMap.get(cte.CaseTimerSnapshot.Id);
                 });
                 // Make array of snapshots accessible from case data.
-                caseDataToTransform.SnapshotMap = caseTimerSnapshotsMap;
-                caseDataToTransform.Snapshots = sortBy(caseTimerSnapshotsMap.values(), function (ss) {
+                caseDataToTransform.Snapshots = sortBy(caseDataToTransform.SnapshotMap.values(), function (ss) {
                     return ss.SnapshotTime;
                 }, true);
-                // Create a D3 map of case timer Id's to snapshots
-                //            var snapshotsByCaseTimerIds = d3.nest().key(cts => cts.SnapshotData.CaseTimer.Id).map(caseDataToTransform.Snapshots);
                 // Set snapshots array on each case timer object (to facilitate access later)
-                //            caseTimerArray.forEach(ct => ct.Snapshots = sortBy(snapshotsByCaseTimerIds.get(ct.Id), ss => ss.SnapshotTime, true));
                 caseTimerArray.forEach(function (ct) {
                     return ct.Snapshots = sortBy(ct.Snapshots, function (ss) {
                         return ss.SnapshotTime;
@@ -1081,7 +1094,7 @@
                     var caseTimerSnapshotPoints = d3.nest().key(function (cts) {
                         return cts.SnapshotTime * 1;
                     }).entries(ct.Snapshots).
-                    // map d3 groupings (of { key: "", values: [] }) into an array of points for the timeline
+                    // Map d3 groupings (of { key: "", values: [] }) into an array of points for the timeline
                     map(function (d) {
                         var snapshotTime = new Date(d.key * 1); // convert key from string to a number to a date
                         var snapshotsAtTime = d.values;
@@ -1091,26 +1104,28 @@
                             var ss = snapshots.find(function (ss) {
                                 return !ss.IsDerived;
                             }) || snapshots[0];
-                            // resolve the subsequent non-derived snapshot
-                            var sndss = ss.SubsequentNonDerivedSnapshot;
-                            if (!sndss) return '';
-                            var timer = sndss.SnapshotData.CaseTimer;
-                            var timerInfo = !timer ? '' : '\n                                <h5>Timer</h5> \n                                State: ' + timer.CurrentEffectiveClockState + '<br>\n                                Current NWTP Types: ' + timer.CurrentNonWorkingTimePeriodTypes + '<br>\n                                Elapsed Time: ' + timer.ElapsedTime + ' (' + timer.Offset + ' + ' + timer.RunTime + ')<br>\n                                Last Calculated: ' + formatDateTime(timer.LastCalculated) + '<br>\n                            ';
-                            var sla = sndss.SnapshotData.Sla;
-                            var slaInfo = !sla ? '' : '\n                                <h5>SLA</h5> \n                                Status: ' + sla.Status + '<br>\n                                <table class="table table-sm">\n                                    <thead>\n                                        <tr>\n                                            <th scope="col"></th>\n                                            <th scope="col">Target Duration</th>\n                                            <th scope="col">Duration Remaining</th>\n                                            <th scope="col">Estimated DateTime</th>\n                                            <th scope="col">Breached?</th>\n                                        </tr>\n                                    </thead>\n                                    <tbody>\n                                        <tr>\n                                            <th scope="row">SLA Initial Response</th>\n                                            <td>' + sla.TargetInitialResponseDuration + '</td>\n                                            <td>' + (sla.TimeUntilInitialResponse || '') + '</td>\n                                            <td>' + formatDateTime(sla.ExpectedInitialResponseDate) + '</td>\n                                            <td>' + sla.HasInitialResponseBreached + '</td>\n                                        </tr>\n                                        <tr>\n                                            <th scope="row">SLA Target Resolution</th>\n                                            <td>' + sla.TargetResolutionDuration + '</td>\n                                            <td>' + sla.TimeRemaining + '</td>\n                                            <td>' + formatDateTime(sla.EstimatedTargetResolutionDate) + '</td>\n                                            <td>' + sla.HasTargetResolutionBreached + '</td>\n                                        </tr>\n                                        <tr>\n                                            <th scope="row">Next Control Point</th>\n                                            <td></td>\n                                            <td>' + sla.TimeUntilNextControlPoint + '</td>\n                                            <td>' + formatDateTime(sla.EstimatedNextControlPointDate) + '</td>\n                                            <td></td>\n                                        </tr>\n                                    </tbody>\n                                </table>\n                                ';
-                            return '<div><em>The following comes from ' + (!sndss.Id ? 'the current state of this case timer' : 'subsequent non-derived snapshot ' + sndss.Id) + '.</em></div>\n                                    ' + timerInfo + '\n                                    ' + slaInfo + '\n                                    ' + (ss.IsDerived ? '<div><strong><em>NOTE: Because this snapshot is derived, the times above may not be accurate.  They actually describe the state of affairs as of the prior non-derived snapshot.</em></strong></div>' : '') + '\n                                    ';
+                            // resolve a non-derived snapshot from the current snapshot or a subsequent snapshot
+                            var ndss = !ss.IsDerived ? ss : ss.SubsequentNonDerivedSnapshot;
+                            if (!ndss) return '';
+                            var timer = ndss.SnapshotData.CaseTimer;
+                            var timerInfo = !timer ? '' : '\n                                <div class="h6 mt-1 mb-0"> Timer <span class="badge badge-secondary">' + timer.Id + '</span> </div>\n                                State: ' + timer.CurrentEffectiveClockState + '<br>\n                                Current NWTP Types: ' + timer.CurrentNonWorkingTimePeriodTypes + '<br>\n                                Elapsed Time: ' + timer.ElapsedTime + ' (' + timer.Offset + ' + ' + timer.RunTime + ')<br>\n                                Last Calculated: ' + formatDateTime(timer.LastCalculated) + '<br>\n                            ';
+                            var sla = ndss.SnapshotData.Sla;
+                            // Don't generate content for the SLA section if the SLA's timer doesn't match the timer above. This only 
+                            // happens when an SLA is replaced with a new one. 
+                            var slaInfo = !sla || sla.CaseTimerId != "00000000-0000-0000-0000-000000000000" && sla.CaseTimerId != timer.Id ? '' : '\n                                <div class="h6 mt-1 mb-0"> SLA <span class="badge badge-secondary">' + sla.Id + '</span> </div>\n                                Status: ' + sla.Status + '<br>\n                                If replaced, remaining time allocation policy:  ' + sla.SlaReplacementElapsedTimeAllocationPolicy + '<br>\n                                <table class="table table-sm">\n                                    <thead>\n                                        <tr>\n                                            <th scope="col"></th>\n                                            <th scope="col">Target Duration</th>\n                                            <th scope="col">Duration Remaining</th>\n                                            <th scope="col">Estimated DateTime</th>\n                                            <th scope="col">Breached?</th>\n                                        </tr>\n                                    </thead>\n                                    <tbody>\n                                        <tr>\n                                            <th scope="row">SLA Initial Response</th>\n                                            <td>' + sla.TargetInitialResponseDuration + '</td>\n                                            <td>' + (sla.TimeUntilInitialResponse || '') + '</td>\n                                            <td>' + formatDateTime(sla.ExpectedInitialResponseDate) + '</td>\n                                            <td>' + sla.HasInitialResponseBreached + '</td>\n                                        </tr>\n                                        <tr>\n                                            <th scope="row">SLA Target Resolution</th>\n                                            <td>' + sla.TargetResolutionDuration + '</td>\n                                            <td>' + (sla.TimeRemaining || '') + '</td>\n                                            <td>' + formatDateTime(sla.EstimatedTargetResolutionDate) + '</td>\n                                            <td>' + sla.HasTargetResolutionBreached + '</td>\n                                        </tr>\n                                        <tr>\n                                            <th scope="row">Next Control Point</th>\n                                            <td></td>\n                                            <td>' + (sla.TimeUntilNextControlPoint || 'n/a') + '</td>\n                                            <td>' + formatDateTime(sla.EstimatedNextControlPointDate) + '</td>\n                                            <td></td>\n                                        </tr>\n                                    </tbody>\n                                </table>\n                                ';
+                            return '<div class="h6 mt-1 mb-0"> Snapshot <span class="badge badge-secondary">' + ss.Id + '</span> </div>\n                                    <div><em>The following data comes from ' + (ss == ndss ? 'the state of this non-derived snapshot' : 'subsequent non-derived snapshot ' + ndss.Id) + '.</em></div>\n                                    ' + timerInfo + '\n                                    ' + slaInfo + '\n                                    ' + (ss.IsDerived ? '<div><strong><em>NOTE: Because this snapshot is derived, the times above are probably inaccurate.  They actually describe the state of affairs as of the subsequent non-derived snapshot.</em></strong></div>' : '') + '\n                                    ';
                         }
                         // Create point data structure
                         var pointObj = {
                             type: TimelineChart.TYPE.POINT,
                             //customClass: 'point-white',
                             label: function label() {
+                                // resolve first snapshot that is not derived (or just use the first one of the group)
+                                // NOTE:  This assumes that we won't have > 1 snapshot for a given point in time.
                                 var ss = snapshotsAtTime.find(function (ss) {
                                     return !ss.IsDerived;
                                 }) || snapshotsAtTime[0];
-                                return '\uD83D\uDCF7 ' + (ss.IsDerived ? 'Derived' : 'Live') + ' Snapshot ' + ss.OrdinalId + ': ' + ss.Id;
-                                // return `${snapshotsAtTime.length} Snapshot${snapshotsAtTime.length == 1 ? '' : 's'}`+
-                                //     snapshotsAtTime.map(e => `<br>📷 ${e.OrdinalId}: ${e.IsDerived ? 'Derived' : 'Live'}: ${e.Id}`).join('');
+                                return '\uD83D\uDCF7 ' + (ss.IsDerived ? 'Derived' : 'Live') + ' Snapshot ' + ss.OrdinalId;
                             },
                             details: function details() {
                                 return generateSnapshotTipHtmlDetails(snapshotsAtTime);
@@ -1216,8 +1231,6 @@
                         intervalType: "OffWorkTimePeriodInterval",
                         customClass: 'interval-white'
                     }];
-                    //var intervalStartEventIds = intervalConfigs.map(ic => ic.startEventId);
-                    //var intervalEndEventIds = intervalConfigs.map(ic => ic.endEventId);
 
                     // Define a function to create a grouping key from an event.  Each event will end up in at most 1 group.
                     var eventIntervalGroupingKeyFn = function eventIntervalGroupingKeyFn(evt) {
@@ -1310,7 +1323,7 @@
                         };
                     });
                     //console.log("timerIntervalSeriesArray: ", timerIntervalSeriesArray);
-                    // end grouping of intervals
+                    // End grouping of intervals
 
 
                     // Order and assign OrdinalId to Snapshots
@@ -1330,7 +1343,6 @@
                         ss.OrdinalId = i + 1;
                     });
 
-                    // For each snapshot, add a reference to the subsequent non-deried snapshot.
                     // This will represent the final non-derived state of the timer, for the purposes of displaying calculated times for each snapshot.
                     var subsequentNonDerivedSnapshot = {
                         SnapshotTime: new Date(),
@@ -1349,12 +1361,20 @@
                             }
                         }
                     };
+                    // For each snapshot, add a reference to the subsequent non-deried snapshot.
                     var snapshotsReversed = ct.Snapshots.slice(0).reverse();
                     snapshotsReversed.forEach(function (ss) {
                         ss.SubsequentNonDerivedSnapshot = subsequentNonDerivedSnapshot;
                         if (!ss.IsDerived) subsequentNonDerivedSnapshot = ss;
                     });
+                    // For each snapshot, add a reference to the prior non-deried snapshot.
+                    var priorNonDerivedSnapshot = {};
+                    ct.Snapshots.forEach(function (ss) {
+                        ss.PriorNonDerivedSnapshot = priorNonDerivedSnapshot;
+                        if (!ss.IsDerived) priorNonDerivedSnapshot = ss;
+                    });
 
+                    // TODO:  Fix overlapping calculation intervals below
                     // Create series for calculation intervals
                     var calculationIntervalsSeries = {
                         label: 'Calculation Intervals',
@@ -1377,15 +1397,9 @@
                             ids: [],
                             onClick: null
                         };
-                        calculationIntervalsSeries.data.push(intervalObj);
+                        // If interval is valid
+                        if (!!intervalObj.from && !!intervalObj.to) calculationIntervalsSeries.data.push(intervalObj);
                     });
-                    // var ci_ss =  ct.Snapshots[0];
-                    // while (ci_ss.SubsequentNonDerivedSnapshot) {
-                    //     var data = [  ];
-
-                    //     ci_ss = ci_ss.SubsequentNonDerivedSnapshot;
-                    // }
-
 
                     // Order and assign OrdinalId to Events
                     // Getting events sorted in an intuitive way is more complex than one might suppose.
@@ -1422,7 +1436,7 @@
 
                     return allSeriesForTimer;
                 })
-                // flatten the array of timeline data series arrays into a single array of TDS.
+                // Now flatten the array of timeline data series arrays into a single array of TDS.
                 .reduce(function (accumulator, currentValue) {
                     return accumulator.concat(currentValue);
                 });
