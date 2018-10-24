@@ -1056,7 +1056,7 @@ class CaseTimerEventViewer {
 
             // Flatten the events.  This will be a list of all events for the case.
             var allEvents = caseTimerArray.selectMany(t => t.Events);
-            // Flatten the events.  This will be a list of all snapshots for the case.
+            // Flatten the snapshots.  This will be a list of all snapshots for the case.
             var allSnapshots = caseTimerArray.selectMany(t => t.Snapshots);
 
             // Create a D3 map of case timer Id to case timer (distinct values only)
@@ -1254,13 +1254,13 @@ class CaseTimerEventViewer {
                         customClass: 'interval-white',
                     },
                     {
-                        key: "NonworkingScheduledTimePeriodIntervalKey",
-                        intervalSeriesEventGroupingKeyFn: evt => "NonworkingScheduledTimePeriodInterval-"+evt.EventData.TemporalEventArgs.NonWorkingPeriod.SourceId,
-                        groupLabelFn: evt => "Non-working Scheduled Time Period: "+evt.EventData.TemporalEventArgs.NonWorkingPeriod.SourceName,
-                        intervalLabelFn: evt => "Non-working Scheduled Time Period: " + evt.EventData.TemporalEventArgs.NonWorkingPeriod.SourceName,
-                        startEventId: "Temporal:NonworkingScheduledTimePeriodBegan",
-                        endEventId: "Temporal:NonworkingScheduledTimePeriodEnded",
-                        intervalType: "NonworkingScheduledTimePeriodInterval",
+                        key: "NonWorkingScheduledTimePeriodIntervalKey",
+                        intervalSeriesEventGroupingKeyFn: evt => "NonWorkingScheduledTimePeriodInterval-"+evt.EventData.TemporalEventArgs.NonWorkingPeriod.SourceId,
+                        groupLabelFn: evt => "Non-Working Scheduled Time Period: "+evt.EventData.TemporalEventArgs.NonWorkingPeriod.SourceName,
+                        intervalLabelFn: evt => "Non-Working Scheduled Time Period: " + evt.EventData.TemporalEventArgs.NonWorkingPeriod.SourceName,
+                        startEventId: "Temporal:NonWorkingScheduledTimePeriodBegan",
+                        endEventId: "Temporal:NonWorkingScheduledTimePeriodEnded",
+                        intervalType: "NonWorkingScheduledTimePeriodInterval",
                         customClass: 'interval-white',
                     },
                     {
@@ -1355,6 +1355,11 @@ class CaseTimerEventViewer {
                                     } 
                                 }, intervalObj);
                             }
+                            // 
+                            if (intervalObj.from > now || intervalObj.to > now)
+                                console.log('WARNING: Temporal disparity: Interval starts or ends after current point in time.  Interval will likely appear invalid.'+
+                                            '\n Now: ', now, 
+                                            '\n Interval: ', intervalObj);
                             curEvt.interval = intervalObj; // Set the interval reference on the event object.  (NOTE: no event should be a member of > 1 interval.)
                             intervals.push(intervalObj);
                         }

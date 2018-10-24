@@ -243,7 +243,8 @@ class PurgeConsole {
             return `<span class="badge badge-${cls}">${prStatus}<span>`;
         }
 
-        function getHtmlForEntityPurgeStatus(epStatus) {
+        function getHtmlForEntityPurgeStatus(entity) {
+            var epStatus = entity ? entity.PurgeStatus : "Purged";
             var cls =
                 epStatus == "Restricted" ? "warning" :
                 epStatus == "None" ? "light" :
@@ -257,13 +258,13 @@ class PurgeConsole {
         const purgeRequestPropertyConfigs = [
             // the datetime value has to be prefixed by a character, because if not, then the sort function will assume the column represents a numeric value.
             { priority: 2, propertyLabel: "Last <br>Modified", propertyValueSelector: x => '.'+formatDateTime(x.LastModified), numericSort: true, onClick: null },
-            { priority: 0, propertyLabel: "Entity <br>Type", propertyValueSelector: x => x.Entity.TypeName, onClick: null },
-            { priority: 0, propertyLabel: "Entity Id", propertyValueSelector: x => `<button type="button" class="btn btn-light d-inline-block text-truncate" style="max-width: 7em" title="${x.Entity.Id}">${x.Entity.Id}</button>`, 
+            { priority: 0, propertyLabel: "Entity <br>Type", propertyValueSelector: x => x.EntityType, onClick: null },
+            { priority: 0, propertyLabel: "Entity Id", propertyValueSelector: x => `<button type="button" class="btn btn-light d-inline-block text-truncate" style="max-width: 7em" title="${x.EntityId}">${x.EntityId}</button>`, 
                 onClick: pr => { 
-                    d3.select('#entity-id').property('value', pr.Entity.Id); 
+                    d3.select('#entity-id').property('value', pr.EntityId); 
                 } },
             { priority: 0, propertyLabel: "Purge <br>Request <br>Status", propertyValueSelector: x => `<h4>${getBootstrapClassForPurgeRequestStatus(x.Status)}</h4>`, onClick: null },
-            { priority: 0, propertyLabel: "Entity <br>Purge <br>Status", propertyValueSelector: x => `<h4>${getHtmlForEntityPurgeStatus(x.Entity.PurgeStatus)}</h4>`, onClick: null },
+            { priority: 0, propertyLabel: "Entity <br>Purge <br>Status", propertyValueSelector: x => `<h4>${getHtmlForEntityPurgeStatus(x.Entity)}</h4>`, onClick: null },
             { priority: 4, propertyLabel: "Requesting <br>User", propertyValueSelector: x => `${x.User.FirstName}<br>${x.User.LastName}`, onClick: null },
             { priority: 5, propertyLabel: "Request <br>Reference <br>Note", propertyValueSelector: x => x.ReferenceNote, onClick: null },
             { priority: 2, propertyLabel: "Result Messages", propertyValueSelector: x => (x.ResultMessages || '').replace(/\n/g, "<br>"), onClick: null },
