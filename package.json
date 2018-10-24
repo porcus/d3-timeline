@@ -4,7 +4,8 @@
   "description": "",
   "main": "dist/timeline-chart.js",
   "scripts": {
-    "test": "karma start karma.conf.js --single-run"
+    "test": "karma start karma.conf.js --single-run",
+    "prepare": "node ./node_modules/gulp/bin/gulp build"
   },
   "author": "Commodity Vectors",
   "license": "MIT",

@@ -40,6 +40,7 @@
             }));
     });
 
+    gulp.task('build', ['js:build', 'css:build']);
 
-    gulp.task('default', ['js:watch', 'css:watch', 'serve']);
+    gulp.task('default', ['build', 'js:watch', 'css:watch', 'serve']);
 })();
