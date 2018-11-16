@@ -1,3 +1,4 @@
+// Timeline chart base styles
 .timeline-chart {
     font-weight: lighter;
     
@@ -15,35 +16,157 @@
         cursor: grab;
     }
     rect.interval {
+        fill: white;
+        stroke: gray;
+        fill-opacity: 0.7;
         cursor: pointer;
-        &:hover {
-            stroke-width: 3;
-        }
-        // &:active {
-        //     cursor: grabbing;
-        // }
-        // &.chart-node-highlight {
-        //     fill: #0f0 !important;
-        // }
         ry: 5;
         rx: 5;
-        fill: black;
-        stroke: #2b2b2b;
+        &:hover {
+            stroke-width: 3;
+        }
     }
     circle.dot {
+        fill: white;
+        stroke: gray;
+        fill-opacity: 0.7;
         cursor: pointer;
         &:hover {
             stroke-width: 3;
         }
-        // &.chart-node-highlight {
-        //     fill: #0f0 !important;
-        // }
     }
-
+    // Text in series names and on intervals
     text.series-label, text.interval-text {
         fill: #333;
-        stroke: #333;
+        //stroke: #333;
         pointer-events: none;
+        font-size: 12px;
     }
-
 }
+
+
+// NOTE:  
+// Because bootstrap 4 is included, it specifies the base styling for the popper tooltip.
+// Bootstrap will style the tooltip like the base styling (below) but without the tooltip "arrow".
+// For more info, see https://github.com/twbs/bootstrap/blob/v4-dev/scss/_tooltip.scss
+
+
+
+/*************************************************/
+// Begin Popper Tooltip base styles 
+
+// Popper general styles
+// NOTE:  These should be included if bootstrap 4 css is not used
+.popper,
+.tooltip {
+    position: absolute;
+    color: black;
+    border-radius: 3px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    text-align: center;
+}
+.popper .popper__arrow,
+.tooltip .tooltip-arrow {
+    /* width: 0; */
+    height: 0;
+    border-style: solid;
+    position: absolute;
+    margin: 5px;
+}
+
+// NOTE:  If tooltip arrows are not desired, then the following 8 definitions may be commented out.
+
+// Top placement
+.popper[x-placement^="top"],
+.tooltip[x-placement^="top"] {
+    margin-bottom: 5px;
+}
+.popper[x-placement^="top"] .popper__arrow,
+.tooltip[x-placement^="top"] .tooltip-arrow {
+    border-width: 5px 5px 0 5px;
+    border-left-color: transparent;
+    border-right-color: transparent;
+    border-bottom-color: transparent;
+    bottom: -5px;
+    left: calc(50% - 5px);
+    margin-top: 0;
+    margin-bottom: 0;
+}
+// Bottom placement
+.popper[x-placement^="bottom"],
+.tooltip[x-placement^="bottom"] {
+    margin-top: 5px;
+}
+.tooltip[x-placement^="bottom"] .tooltip-arrow,
+.popper[x-placement^="bottom"] .popper__arrow {
+    border-width: 0 5px 5px 5px;
+    border-left-color: transparent;
+    border-right-color: transparent;
+    border-top-color: transparent;
+    top: -5px;
+    left: calc(50% - 5px);
+    margin-top: 0;
+    margin-bottom: 0;
+}
+// Right placement
+.tooltip[x-placement^="right"],
+.popper[x-placement^="right"] {
+    margin-left: 5px;
+}
+.popper[x-placement^="right"] .popper__arrow,
+.tooltip[x-placement^="right"] .tooltip-arrow {
+    border-width: 5px 5px 0px 0px;
+    border-left-color: transparent;
+    border-top-color: transparent;
+    /* border-bottom-color: transparent; */
+    left: -5px;
+    top: calc(50% - 5px);
+    margin-left: 0;
+    margin-right: 0;
+}
+// Left placement
+.popper[x-placement^="left"],
+.tooltip[x-placement^="left"] {
+    margin-right: 5px;
+}
+.popper[x-placement^="left"] .popper__arrow,
+.tooltip[x-placement^="left"] .tooltip-arrow {
+    border-width: 5px 0 5px 5px;
+    border-top-color: transparent;
+    border-right-color: transparent;
+    border-bottom-color: transparent;
+    right: -5px;
+    top: calc(50% - 5px);
+    margin-left: 0;
+    margin-right: 0;
+}
+
+// End Popper Tooltip base styles
+/*************************************************/
+
+
+// Override/set some of our own styles for a tooltip and its content
+$tip-color: rgba(0, 0, 0, 0.8);
+.tooltip {
+    .tooltip-inner {
+        background-color: $tip-color;
+        // padding: .5em 1em;  // a little extra padding?
+        max-width: 600px;
+        line-height: 1.2em;
+
+        .tip-heading {
+            color: rgb(103, 174, 255);
+            font-weight: bold;
+        }
+        .tip-body {
+            color: white;
+            font-size: 80%;
+            font-weight: normal;
+            text-align: left;
+        }
+    }
+    .tooltip-arrow {
+        border-color: $tip-color;
+    }
+}
+

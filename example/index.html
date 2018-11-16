@@ -5,9 +5,7 @@
     <meta charset="utf-8" />
     <title>D3 Timeline Chart</title>
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/0.0.1/prism.min.css" />
-    <link rel="stylesheet" href="https://rawgithub.com/Caged/d3-tip/master/examples/example-styles.css" />
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous"> 
     <link rel="stylesheet" href="../dist/timeline-chart.css" />
     <link rel="stylesheet" href="style.css" />
 </head>
@@ -17,9 +15,9 @@
         <div id="chart"></div>
     </section>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/0.0.1/prism.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.16/d3.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-tip/0.6.7/d3-tip.min.js"></script>
+    <script data-require="d3@4.0.0" data-semver="4.0.0" src="https://d3js.org/d3.v4.min.js"></script>
+    <script src="https://unpkg.com/popper.js"></script>
+    <script src="https://unpkg.com/tooltip.js"></script>
     <script src="../dist/timeline-chart.js"></script>
 
     <script id="code">
@@ -27,69 +25,166 @@
         'use strict';
 
         const element = document.getElementById('chart');
-        const data = [{
-            label: 'Name',
-            data: [{
-                type: TimelineChart.TYPE.POINT,
-                at: new Date([2016, 5, 1])
-            }, {
-                type: TimelineChart.TYPE.POINT,
-                at: new Date([2016, 6, 1])
-            }, {
-                type: TimelineChart.TYPE.POINT,
-                at: new Date([2016, 7, 1])
-            }, {
-                type: TimelineChart.TYPE.POINT,
-                at: new Date([2016, 8, 1])
-            }, {
-                type: TimelineChart.TYPE.POINT,
-                at: new Date([2016, 9, 1])
-            }, {
-                type: TimelineChart.TYPE.POINT,
-                at: new Date([2016, 10, 1]),
-                customClass: 'blue-dot'
-            }]
-        }, {
-            label: 'Type',
-            data: [{
-                type: TimelineChart.TYPE.POINT,
-                at: new Date([2016, 5, 11])
-            }, {
-                type: TimelineChart.TYPE.POINT,
-                at: new Date([2016, 5, 15])
-            }, {
-                type: TimelineChart.TYPE.POINT,
-                at: new Date([2016, 7, 10])
-            }, {
-                label: 'I\'m a label with a custom class',
-                type: TimelineChart.TYPE.INTERVAL,
-                from: new Date([2016, 6, 1]),
-                to: new Date([2016, 7, 1]),
-                customClass: 'blue-interval'
-            }, {
-                type: TimelineChart.TYPE.POINT,
-                at: new Date([2016, 10, 1])
-            }, {
-                type: TimelineChart.TYPE.POINT,
-                at: new Date([2016, 11, 1])
-            }]
-        }, {
-            label: 'Imp',
-            data: [{
-                label: 'Label 1',
-                type: TimelineChart.TYPE.INTERVAL,
-                from: new Date([2016, 5, 15]),
-                to: new Date([2016, 7, 1])
-            }, {
-                label: 'Label 2',
-                type: TimelineChart.TYPE.INTERVAL,
-                from: new Date([2016, 8, 1]),
-                to: new Date([2016, 9, 12])
-            }]
-        }];
+        const data = [
+            // series 1
+            {
+                label: 'Name',
+                data: [
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        at: new Date([2016, 5, 1]),
+                        label: "point 1"
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        at: new Date([2016, 6, 1]),
+                        label: "point 2"
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        at: new Date([2016, 7, 1]),
+                        label: "point 3"
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        at: new Date([2016, 8, 1]),
+                        label: "point 4"
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        at: new Date([2016, 9, 1]),
+                        label: "point 5"
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        at: new Date([2016, 10, 1]),
+                        customClass: 'blue-dot',
+                        label: "a blue dot"
+                    }
+                ]
+            },
+            // series 2
+            {
+                label: 'Type',
+                data: [
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        at: new Date([2016, 5, 11]),
+                        label: "first point in series"
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        at: new Date([2016, 5, 15])
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        at: new Date([2016, 7, 10])
+                    },
+                    {
+                        label: 'I\'m an interval with a custom class',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        from: new Date([2016, 6, 1]),
+                        to: new Date([2016, 7, 1]),
+                        customClass: 'blue-interval'
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        at: new Date([2016, 10, 1])
+                    },
+                    {
+                        type: TimelineChart.TYPE.POINT,
+                        at: new Date([2016, 11, 1])
+                    }
+                ]
+            },
+            // series 3
+            {
+                label: 'Very, very, very, very, very, very long series name',
+                data: [
+                    {
+                        label: 'Label 1',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        from: new Date([2016, 5, 15]),
+                        to: new Date([2016, 7, 1])
+                    },
+                    {
+                        label: 'Label 2',
+                        type: TimelineChart.TYPE.INTERVAL,
+                        from: new Date([2016, 8, 1]),
+                        to: new Date([2016, 9, 12])
+                    }
+                ]
+            }
+        ];
+
+
+        /* Generate the HTML content of the tip for each timeline object from the following properties of each:
+            type:  Symbol - Should be either TimelineChart.TYPE.POINT or TimelineChart.TYPE.INTERVAL.
+            label:  string | function - HTML content (or function to generate the same) which BRIEFLY names/identifies the object.
+            details:  string | function - HTML content (or function to generate the same) which provides details about the object.
+        */
+        function generateTipHtmlContent(d) {
+            // if d.label is a fn, call it to generate tip label content.
+            var tipHeading = typeof(d.label) == 'function' ? formatLabelForTipHtml(d.label(d)+'') : typeof(d.label)=='string' ? formatLabelForTipHtml(d.label) : '(no label)';
+
+            var tipDetails = typeof(d.details) == 'function' ? d.details(d)+'' : typeof(d.details) == 'string' ? d.details : '';
+
+            // Auto-generate temporal description.  Include "at" time for points or from/to time range for intervals with label.
+            var temporalDescription = d.type == TimelineChart.TYPE.POINT ? 'Time: '+formatDateTime(d.at) : 
+                'From: '+formatDateTime(d.from)+
+                '<br>To: '+formatDateTime(d.to)+
+                '<br>Duration: '+formatDuration(d.to, d.from);
+            var result = `
+                <div class="tip-heading h5">${tipHeading}</div>
+                <div class="tip-body">
+                <div>${temporalDescription}</div>
+                <div>${tipDetails}</div>
+                </div>`;
+            return result;
+        };
+
+        const ymdhmsfTimeFormatter = d3.utcFormat("%Y-%m-%d %I:%M:%S.%L %p");
+
+        function formatDateTime(date) {
+            if (!date) return '';
+            // We will only display fractional seconds to ms precision, because JS's date doesn't support any greater precision than that.
+            return ymdhmsfTimeFormatter(date);
+        }
+
+        function formatDuration(later, earlier) {
+            var rem_ms = later - earlier;  // remaining ms
+            var ms = rem_ms % 1000;
+            var rem_s = Math.floor(rem_ms / 1000);  // seconds remaining
+            var s = rem_s % 60;  // integral seconds part
+            var rem_m = Math.floor(rem_s / 60);  // minutes remaining
+            var m = rem_m % 60;  // integral minutes part
+            var rem_h = Math.floor(rem_m / 60);  // hours remaining
+            var h = rem_h % 24;  // integral hours part
+            var rem_d = Math.floor(rem_h / 24);  // days remaining
+            var d = rem_d % 365;  // integral days part
+            var y = Math.floor(d / 365);  // integral years part
+
+            var parts = [
+                y ? `${y} year${y>1?'s':''}` : null,
+                d ? `${d} day${d>1?'s':''}` : null,
+                h ? `${h} hour${h>1?'s':''}` : null,
+                m ? `${m} minute${m>1?'s':''}` : null,
+                s ? `${s} second${s>1?'s':''}` : null
+            ].filter(x => x != null);
+            var durationString = parts.join(' ');
+            return durationString || ms+' ms';
+        }
+
+        function formatLabelForTipHtml(label) {
+            return (label || '').replace(/ /g, '&nbsp;').replace(/\\n/g, '<br>');
+        };
+
 
         const timeline = new TimelineChart(element, data, {
             enableLiveTimer: true,
+            tipContentGenerator: generateTipHtmlContent,
+            groupWidth: 150,  // default: 400 (px)
+            groupHeight: 50,  // default: 40
             tip: function(d) {
                 return d.at || `${d.from}<br>${d.to}`;
             }
