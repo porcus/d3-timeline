@@ -255,42 +255,48 @@
             });
 
             // If set, options.tipContentGenerator should have the following form: function(timelineObjectForWhichToRenderTipContent)
-            if (options.tipContentGenerator) {
+            if (window.Popper && window.Tooltip && options.tipContentGenerator) {
                 var tip = function () {
                     // The container element will hold the placeholder element and the tooltip element
                     // The reason we need this is because of how tooltip.js resolves the tooltip-inner element when updating the tooltip "title".
                     var container = document.createElement('div');
                     document.body.appendChild(container);
 
-                    // The placeholder element will 
+                    // The placeholder element will be used to position the tooltip by representing the
+                    // area of the target element which is capable of being viewed.
                     var placeholderEl = d3.select(document.createElement('div'));
-                    placeholderEl.style('position', 'absolute').style('top', 0).style('opacity', 0)
-                    //.style('background-color', '#0000ff7f')
-                    .style('pointer-events', 'none').style('box-sizing', 'border-box');
+                    placeholderEl.style('position', 'absolute').style('top', 0).style('opacity', 0).style('pointer-events', 'none').style('box-sizing', 'border-box');
                     container.appendChild(placeholderEl.node());
-
-                    var _tooltip = null;
-                    function getToolTip() {
-                        if (_tooltip == null) _tooltip = new Tooltip(placeholderEl.node(), {
-                            placement: 'top',
-                            title: 'initial value',
-                            html: true,
-                            popperOptions: {
-                                onCreate: function onCreate(p) {
-                                    p.instance.popper.classList.add('show');
-                                },
-                                modifiers: {
-                                    flip: {
-                                        behavior: ['top', 'bottom', 'left', 'right']
-                                    }
-                                }
-                            }
-                        });
-                        return _tooltip;
-                    }
 
                     function result() {
                         console.log('calling tip fn');
+                    }
+
+                    var _tooltip = null;
+                    function getToolTip() {
+                        if (window.Popper && window.Tooltip && _tooltip == null) {
+                            _tooltip = new Tooltip(placeholderEl.node(), {
+                                placement: 'top',
+                                title: 'initial value',
+                                html: true,
+                                popperOptions: {
+                                    onCreate: function onCreate(p) {
+                                        p.instance.popper.classList.add('show');
+                                    },
+                                    modifiers: {
+                                        flip: {
+                                            behavior: ['top', 'bottom', 'left', 'right']
+                                        }
+                                    }
+                                }
+                            });
+                            // Showing and hiding the tooltip will cause the tooltip node to be created
+                            _tooltip.show();
+                            _tooltip.hide();
+                            d3.select(_tooltip._tooltipNode).on('mouseenter', result.onMouseEnter);
+                            d3.select(_tooltip._tooltipNode).on('mouseleave', result.onMouseLeave);
+                        }
+                        return _tooltip;
                     }
 
                     var tipContentGenerator;
@@ -299,8 +305,48 @@
                         tipContentGenerator = val;
                     };
 
+                    var tipIsShowing = false;
+                    var tipHideDelayTimeoutToken = null;
+                    var targetElement = null;
+
+                    result.onMouseEnter = function () {
+                        result.cancelHide();
+                    };
+
+                    result.onMouseLeave = function () {
+                        result.hideWithDelay();
+                    };
+
+                    // Cancel the delayed hide operation
+                    result.cancelHide = function () {
+                        if (!tipHideDelayTimeoutToken) return;
+
+                        clearTimeout(tipHideDelayTimeoutToken);
+                        tipHideDelayTimeoutToken = null;
+                    };
+
+                    result.hideNow = function () {
+                        if (!tipIsShowing) return;
+
+                        // If this method was called before the hide delay timeout expired, then cancel the pending operation
+                        result.cancelHide();
+
+                        tipHideDelayTimeoutToken = null;
+                        getToolTip().hide();
+                        tipIsShowing = false;
+                        targetElement = null;
+                    };
+
+                    result.hideWithDelay = function () {
+                        tipHideDelayTimeoutToken = setTimeout(function () {
+                            result.hideNow();
+                        }, 250);
+                    };
+
                     result.show = function (d) {
-                        // update position and size of placeholder element to match the target element
+                        if (tipIsShowing && this == targetElement) result.cancelHide();else result.hideNow();
+
+                        // Update the position and dimensions of the placeholder element to match that of the target element.
                         var rect = this.getBoundingClientRect(); // bounding client rect of target element
                         var cliprect = interactionRect.node().getBoundingClientRect(); // bounding client rect of element to clip the target element's coords to
 
@@ -312,16 +358,14 @@
                         var width = Math.min(right - left, rect.width);
 
                         placeholderEl.style('top', top + 'px').style('left', left + 'px').style('height', height + 'px').style('width', width + 'px');
-                        // update the content of the tooltip to match the data
+                        // Update the content of the tooltip by regenerating it to match the current data.
                         var html = tipContentGenerator(d);
                         var tt = getToolTip();
                         tt.updateTitleContent(html);
                         // show
                         tt.show();
-                    };
-
-                    result.hide = function () {
-                        getToolTip().hide();
+                        tipIsShowing = true;
+                        targetElement = this;
                     };
 
                     return result;
@@ -329,8 +373,8 @@
 
                 // Set fn for generating tip content
                 tip.html(options.tipContentGenerator);
-                dots.on('mouseover', tip.show).on('mouseout', tip.hide);
-                intervals.on('mouseover', tip.show).on('mouseout', tip.hide);
+                dots.on('mouseover', tip.show).on('mouseout', tip.hideWithDelay);
+                intervals.on('mouseover', tip.show).on('mouseout', tip.hideWithDelay);
             }
 
             zoomed();
