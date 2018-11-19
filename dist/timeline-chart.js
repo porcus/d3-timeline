@@ -255,7 +255,8 @@
             });
 
             // If set, options.tipContentGenerator should have the following form: function(timelineObjectForWhichToRenderTipContent)
-            if (window.Popper && window.Tooltip && options.tipContentGenerator) {
+            // Note:  popper.js and tooltip.js are not required at this point.
+            if (options.tipContentGenerator) {
                 var tip = function () {
                     // The container element will hold the placeholder element and the tooltip element
                     // The reason we need this is because of how tooltip.js resolves the tooltip-inner element when updating the tooltip "title".
@@ -274,6 +275,8 @@
 
                     var _tooltip = null;
                     function getToolTip() {
+
+                        // At this point, we should expect popper.js and tooltip.js to have been included, so that the Tooltip class is available before proceeding.
                         if (window.Popper && window.Tooltip && _tooltip == null) {
                             _tooltip = new Tooltip(placeholderEl.node(), {
                                 placement: 'top',
