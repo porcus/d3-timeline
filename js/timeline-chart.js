@@ -44,6 +44,28 @@ Provided timeline data should match the following grammar/rules:
 
     <css-class> : <string>
 
+
+Supported options (i.e. properties of opts) include the following:
+
+    useLocalTimeScale: <Boolean> Set to true if all times should be interpreted as local time.  
+        The default (false) is for all times to be interpreted as UTC times.
+    enableLiveTimer: <Boolean> Set to true if the current time should be represented on the timeline as a vertical line.
+        This is disabled/false by default.
+    liveTimerTickInterval: <Number> The interval (in ms) for the live timer (if enabled).  This defaults to 1000.
+    intervalMinWidth: <Number> The minimum width (in px) of a time interval (so it can still be seen when zoomed out).  
+        The default value is 8.
+    tipContentGenerator: <Function> A function for rendering an HTML representation of tip content for a timeline point or interval.
+        The provided argument is the data element bound to the point/interval. The result should be the HTML content to display.
+    textTruncateThreshold: 
+    width: <Number> If provided, this value will be used as the fixed width (in px) of the timeline component.  
+        If not provided, the timeline component will fill the available space of its parent element.
+    height: <Number> If provided, this value will be used as the fixed height (in px) of the timeline component.  
+        If not provided, the timeline component will fill the available space of its parent element.
+        Note that the total height of the timeline component can also be affected by the groupHeight option.
+    groupWidth: <Number> Width (in px) of the series label region on the left side of the timeline component.  
+        If not specified, it defaults to 400.
+    groupHeight: <Number> Height (in px) of each horizontal division of the timeline containing a series of data.
+        If not specified, the total available vertical space will be divided equally among each series.
 */
 
 class TimelineChart {
@@ -100,30 +122,30 @@ class TimelineChart {
 
         let dataIdClassPrefix = "_id_";
 
-        let width = elementWidth - margin.left - margin.right;
-        let height = elementHeight - margin.top - margin.bottom;
+        let componentWidth = elementWidth - margin.left - margin.right;
+        let componentHeight = elementHeight - margin.top - margin.bottom;
 
         // Width of the series label area
         let groupWidth = options.groupWidth || 400;  // options.hideGroupLabels ? 0 : 400;
 
         // Height of each section containing a horizontal series.  By default, fit each series into the available vertical space.
-        let groupHeight = height / timelineData.length;
+        let groupHeight = componentHeight / timelineData.length;
         // Otherwise, if the groupHeight option is set, then use its value for the height of each series, and set the total height accordingly.
         if (!!options.groupHeight)
         {
             groupHeight = options.groupHeight;
-            height = groupHeight * timelineData.length;
+            componentHeight = groupHeight * timelineData.length;
         }
 
-        let xTimeScaleOriginal = d3.scaleTime()
+        let xTimeScaleOriginal = (options.useLocalTimeScale === true ? d3.scaleTime() : d3.scaleUtc())
             .domain([minDt, maxDt])
-            .range([groupWidth, width]);
+            .range([groupWidth, componentWidth]);
         let xTimeScaleForContent = xTimeScaleOriginal;
 
         // X axis ticks
         let xAxis = d3.axisTop(xTimeScaleForContent)
             //.orient('top') // set to 'bottom' for a bottom-aligned axis and to 'top' for a top-aligned axis
-            .tickSize(height); // set to height for a bottom-aligned axis and to -height for a top-aligned axis
+            .tickSize(componentHeight); // set to height for a bottom-aligned axis and to -height for a top-aligned axis
         let xAxisScaled = xAxis;
 
         // In order to upgrade from v3 to v4, this needs to change.
@@ -131,13 +153,13 @@ class TimelineChart {
         let zoom = d3.zoom()
             .on('zoom', zoomed)
             .scaleExtent([1, Infinity])
-            .extent([[groupWidth,0], [width, height]])
-            .translateExtent([[groupWidth,0], [width, height]])
+            .extent([[groupWidth,0], [componentWidth, componentHeight]])
+            .translateExtent([[groupWidth,0], [componentWidth, componentHeight]])
 
         let svg = self.svgElement = timelineContainer
             .append('svg')
-            .attr('width', width + margin.left + margin.right)
-            .attr('height', height + margin.top + margin.bottom);
+            .attr('width', componentWidth + margin.left + margin.right)
+            .attr('height', componentHeight + margin.top + margin.bottom);
 
         // All elements affected by the zooming behavior are created in the zoom() fn.
         let svg_g = svg
@@ -164,16 +186,16 @@ class TimelineChart {
             .append('rect')
             .attr('x', groupWidth)
             .attr('y', 0)
-            .attr('height', height)
-            .attr('width', width - groupWidth)
+            .attr('height', componentHeight)
+            .attr('width', componentWidth - groupWidth)
 
         // Invisible rect covering chart bounds, ensuring that all interactions intended for the chart will be raised as events on SVG elements
         let interactionRect = svg_g.append('rect')
             .attr('class', 'chart-bounds')
             .attr('x', groupWidth)
             .attr('y', 0)
-            .attr('height', height)
-            .attr('width', width - groupWidth);
+            .attr('height', componentHeight)
+            .attr('width', componentWidth - groupWidth);
 
         //interactionRect.call(zoom);
 
@@ -182,7 +204,7 @@ class TimelineChart {
                 .attr('clip-path', `url(#${chartContentClipPathId})`)
                 .attr('class', 'vertical-marker now')
                 .attr("y1", 0)
-                .attr("y2", height);
+                .attr("y2", componentHeight);
         }
 
         let seriesBackground = svg_g.selectAll('.series-background')
@@ -192,7 +214,7 @@ class TimelineChart {
             .attr('class', 'series-background')
             .attr('x', 0)
             .attr('y', (d, i) => { return groupHeight * i; })
-            .attr('width', width)
+            .attr('width', componentWidth)
             .attr('height', groupHeight)
             .style('fill', (d, i) => {
                 // For numeric values of grouping key, use them.  Otherwise, use the supplied index (i).
@@ -207,7 +229,7 @@ class TimelineChart {
             .append('line')
             .attr('class', 'series-divider')
             .attr('x1', 0)
-            .attr('x2', width)
+            .attr('x2', componentWidth)
             .attr('y1', (d, i) => {
                 return groupHeight * (i + 1);
             })
@@ -218,22 +240,22 @@ class TimelineChart {
         let translucentOverlay = svg_g.append('rect')
             .attr('x', groupWidth)
             .attr('y', 0)
-            .attr('width', width - groupWidth)
-            .attr('height', height)
+            .attr('width', componentWidth - groupWidth)
+            .attr('height', componentHeight)
             .style('fill', "#fff")
             .style('fill-opacity', '.25');
 
         let boundingRect = svg_g.append('rect')
             .attr('x', 0)
             .attr('y', 0)
-            .attr('width', width)
-            .attr('height', height)
+            .attr('width', componentWidth)
+            .attr('height', componentHeight)
             .style('stroke', "#000");
 
         // Axis with labels and ticks
         let gX = svg_g.append('g')
             .attr('class', 'x axis')
-            .attr('transform', 'translate(0,' + height + ')')
+            .attr('transform', 'translate(0,' + componentHeight + ')')
             .call(xAxis);
 
         // Monitor for change in size of containing element
@@ -242,27 +264,27 @@ class TimelineChart {
         function handleWidthChange() {
             var newWidth = timelineContainerElement.clientWidth - margin.left - margin.right - 2;
 
-            if (newWidth > 0 && newWidth != width)
+            if (newWidth > 0 && newWidth != componentWidth)
             {
-                width = newWidth;
-                svg.attr("width", width) ;
-                seriesDividers.attr('x2', width);
-                seriesBackground.attr('width', width);
-                boundingRect.attr('width', width);
+                componentWidth = newWidth;
+                svg.attr("width", componentWidth) ;
+                seriesDividers.attr('x2', componentWidth);
+                seriesBackground.attr('width', componentWidth);
+                boundingRect.attr('width', componentWidth);
 
-                var interactionWidth = width - groupWidth;
+                var interactionWidth = componentWidth - groupWidth;
                 translucentOverlay.attr('width', interactionWidth);
                 clipPathRect.attr("width", interactionWidth);
                 interactionRect.attr("width", interactionWidth);
                 
-                xTimeScaleOriginal.range([groupWidth, width]);
-                xTimeScaleForContent.range([groupWidth, width]);
+                xTimeScaleOriginal.range([groupWidth, componentWidth]);
+                xTimeScaleForContent.range([groupWidth, componentWidth]);
                 xAxisScaled = xAxis.scale(xTimeScaleForContent);
                 zoom
-                    .extent([[groupWidth,0], [width, height]])
-                    .translateExtent([[groupWidth,0], [width, height]]);
+                    .extent([[groupWidth,0], [componentWidth, componentHeight]])
+                    .translateExtent([[groupWidth,0], [componentWidth, componentHeight]]);
                 zoomed();
-                console.log("Width changed.  New total width: ", width, "New interactive width: ", interactionWidth);
+                console.log("Width changed.  New total width: ", componentWidth, "New interactive width: ", interactionWidth);
             }
         }
 
@@ -282,7 +304,7 @@ class TimelineChart {
                 .text(d => d.label)
                 .call(wrap, groupWidth);
 
-            let lineSection = svg_g.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', height).attr('stroke', 'orange');
+            let lineSection = svg_g.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', componentHeight).attr('stroke', 'orange');
         }
 
         let groupIntervalItems = svg_g.selectAll('.series-interval-item')
@@ -475,7 +497,7 @@ class TimelineChart {
         zoomed();
 
         if (options.enableLiveTimer) {
-            setInterval(updateNowMarker, options.timerTickInterval);
+            setInterval(updateNowMarker, options.liveTimerTickInterval);
         }
 
 
@@ -752,13 +774,16 @@ class TimelineChart {
     }
     extendOptions(ext = {}) {
         let defaultOptions = {
+            useLocalTimeScale: false,
             intervalMinWidth: 8, // px
             tipContentGenerator: undefined,
             textTruncateThreshold: 30,
             enableLiveTimer: false,
-            timerTickInterval: 1000,
-            groupHeight: 40, // px
-            groupWidth: 300 // px
+            liveTimerTickInterval: 1000,
+            width: undefined,
+            height: undefined,
+            groupWidth: 400, // px
+            groupHeight: 40 // px
         };
         Object.keys(ext).map(k => defaultOptions[k] = ext[k]);
         return defaultOptions;

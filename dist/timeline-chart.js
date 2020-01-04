@@ -95,34 +95,34 @@
 
             var dataIdClassPrefix = "_id_";
 
-            var width = elementWidth - margin.left - margin.right;
-            var height = elementHeight - margin.top - margin.bottom;
+            var componentWidth = elementWidth - margin.left - margin.right;
+            var componentHeight = elementHeight - margin.top - margin.bottom;
 
             // Width of the series label area
             var groupWidth = options.groupWidth || 400; // options.hideGroupLabels ? 0 : 400;
 
             // Height of each section containing a horizontal series.  By default, fit each series into the available vertical space.
-            var groupHeight = height / timelineData.length;
+            var groupHeight = componentHeight / timelineData.length;
             // Otherwise, if the groupHeight option is set, then use its value for the height of each series, and set the total height accordingly.
             if (!!options.groupHeight) {
                 groupHeight = options.groupHeight;
-                height = groupHeight * timelineData.length;
+                componentHeight = groupHeight * timelineData.length;
             }
 
-            var xTimeScaleOriginal = d3.scaleTime().domain([minDt, maxDt]).range([groupWidth, width]);
+            var xTimeScaleOriginal = (options.useLocalTimeScale === true ? d3.scaleTime() : d3.scaleUtc()).domain([minDt, maxDt]).range([groupWidth, componentWidth]);
             var xTimeScaleForContent = xTimeScaleOriginal;
 
             // X axis ticks
             var xAxis = d3.axisTop(xTimeScaleForContent)
             //.orient('top') // set to 'bottom' for a bottom-aligned axis and to 'top' for a top-aligned axis
-            .tickSize(height); // set to height for a bottom-aligned axis and to -height for a top-aligned axis
+            .tickSize(componentHeight); // set to height for a bottom-aligned axis and to -height for a top-aligned axis
             var xAxisScaled = xAxis;
 
             // In order to upgrade from v3 to v4, this needs to change.
             // See here:  https://coderwall.com/p/psogia/simplest-way-to-add-zoom-pan-on-d3-js
-            var zoom = d3.zoom().on('zoom', zoomed).scaleExtent([1, Infinity]).extent([[groupWidth, 0], [width, height]]).translateExtent([[groupWidth, 0], [width, height]]);
+            var zoom = d3.zoom().on('zoom', zoomed).scaleExtent([1, Infinity]).extent([[groupWidth, 0], [componentWidth, componentHeight]]).translateExtent([[groupWidth, 0], [componentWidth, componentHeight]]);
 
-            var svg = self.svgElement = timelineContainer.append('svg').attr('width', width + margin.left + margin.right).attr('height', height + margin.top + margin.bottom);
+            var svg = self.svgElement = timelineContainer.append('svg').attr('width', componentWidth + margin.left + margin.right).attr('height', componentHeight + margin.top + margin.bottom);
 
             // All elements affected by the zooming behavior are created in the zoom() fn.
             var svg_g = svg.append('g').attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
@@ -141,38 +141,38 @@
             }
 
             var chartContentClipPathId = "chart-content-clip-path-" + uuidv4();
-            var clipPathRect = svg_g.append('defs').append('clipPath').attr('id', chartContentClipPathId).append('rect').attr('x', groupWidth).attr('y', 0).attr('height', height).attr('width', width - groupWidth);
+            var clipPathRect = svg_g.append('defs').append('clipPath').attr('id', chartContentClipPathId).append('rect').attr('x', groupWidth).attr('y', 0).attr('height', componentHeight).attr('width', componentWidth - groupWidth);
 
             // Invisible rect covering chart bounds, ensuring that all interactions intended for the chart will be raised as events on SVG elements
-            var interactionRect = svg_g.append('rect').attr('class', 'chart-bounds').attr('x', groupWidth).attr('y', 0).attr('height', height).attr('width', width - groupWidth);
+            var interactionRect = svg_g.append('rect').attr('class', 'chart-bounds').attr('x', groupWidth).attr('y', 0).attr('height', componentHeight).attr('width', componentWidth - groupWidth);
 
             //interactionRect.call(zoom);
 
             if (options.enableLiveTimer) {
-                self.now = svg_g.append('line').attr('clip-path', 'url(#' + chartContentClipPathId + ')').attr('class', 'vertical-marker now').attr("y1", 0).attr("y2", height);
+                self.now = svg_g.append('line').attr('clip-path', 'url(#' + chartContentClipPathId + ')').attr('class', 'vertical-marker now').attr("y1", 0).attr("y2", componentHeight);
             }
 
             var seriesBackground = svg_g.selectAll('.series-background').data(timelineData).enter().append('rect').attr('class', 'series-background').attr('x', 0).attr('y', function (d, i) {
                 return groupHeight * i;
-            }).attr('width', width).attr('height', groupHeight).style('fill', function (d, i) {
+            }).attr('width', componentWidth).attr('height', groupHeight).style('fill', function (d, i) {
                 // For numeric values of grouping key, use them.  Otherwise, use the supplied index (i).
                 var index = Math.abs(Math.floor((d.groupingKey == d.groupingKey * 1 ? d.groupingKey : i) % 10) * 2 - 1);
                 return d3.schemeCategory20[index];
             });
 
             // horizontal lines between groups.  (This used to use the 'group-section' class, but is now using the 'series' terminology.)
-            var seriesDividers = svg_g.selectAll('.series-divider').data(timelineData).enter().append('line').attr('class', 'series-divider').attr('x1', 0).attr('x2', width).attr('y1', function (d, i) {
+            var seriesDividers = svg_g.selectAll('.series-divider').data(timelineData).enter().append('line').attr('class', 'series-divider').attr('x1', 0).attr('x2', componentWidth).attr('y1', function (d, i) {
                 return groupHeight * (i + 1);
             }).attr('y2', function (d, i) {
                 return groupHeight * (i + 1);
             });
 
-            var translucentOverlay = svg_g.append('rect').attr('x', groupWidth).attr('y', 0).attr('width', width - groupWidth).attr('height', height).style('fill', "#fff").style('fill-opacity', '.25');
+            var translucentOverlay = svg_g.append('rect').attr('x', groupWidth).attr('y', 0).attr('width', componentWidth - groupWidth).attr('height', componentHeight).style('fill', "#fff").style('fill-opacity', '.25');
 
-            var boundingRect = svg_g.append('rect').attr('x', 0).attr('y', 0).attr('width', width).attr('height', height).style('stroke', "#000");
+            var boundingRect = svg_g.append('rect').attr('x', 0).attr('y', 0).attr('width', componentWidth).attr('height', componentHeight).style('stroke', "#000");
 
             // Axis with labels and ticks
-            var gX = svg_g.append('g').attr('class', 'x axis').attr('transform', 'translate(0,' + height + ')').call(xAxis);
+            var gX = svg_g.append('g').attr('class', 'x axis').attr('transform', 'translate(0,' + componentHeight + ')').call(xAxis);
 
             // Monitor for change in size of containing element
             setInterval(handleWidthChange, 1000);
@@ -180,24 +180,24 @@
             function handleWidthChange() {
                 var newWidth = timelineContainerElement.clientWidth - margin.left - margin.right - 2;
 
-                if (newWidth > 0 && newWidth != width) {
-                    width = newWidth;
-                    svg.attr("width", width);
-                    seriesDividers.attr('x2', width);
-                    seriesBackground.attr('width', width);
-                    boundingRect.attr('width', width);
+                if (newWidth > 0 && newWidth != componentWidth) {
+                    componentWidth = newWidth;
+                    svg.attr("width", componentWidth);
+                    seriesDividers.attr('x2', componentWidth);
+                    seriesBackground.attr('width', componentWidth);
+                    boundingRect.attr('width', componentWidth);
 
-                    var interactionWidth = width - groupWidth;
+                    var interactionWidth = componentWidth - groupWidth;
                     translucentOverlay.attr('width', interactionWidth);
                     clipPathRect.attr("width", interactionWidth);
                     interactionRect.attr("width", interactionWidth);
 
-                    xTimeScaleOriginal.range([groupWidth, width]);
-                    xTimeScaleForContent.range([groupWidth, width]);
+                    xTimeScaleOriginal.range([groupWidth, componentWidth]);
+                    xTimeScaleForContent.range([groupWidth, componentWidth]);
                     xAxisScaled = xAxis.scale(xTimeScaleForContent);
-                    zoom.extent([[groupWidth, 0], [width, height]]).translateExtent([[groupWidth, 0], [width, height]]);
+                    zoom.extent([[groupWidth, 0], [componentWidth, componentHeight]]).translateExtent([[groupWidth, 0], [componentWidth, componentHeight]]);
                     zoomed();
-                    console.log("Width changed.  New total width: ", width, "New interactive width: ", interactionWidth);
+                    console.log("Width changed.  New total width: ", componentWidth, "New interactive width: ", interactionWidth);
                 }
             }
 
@@ -211,7 +211,7 @@
                     return d.label;
                 }).call(wrap, groupWidth);
 
-                var lineSection = svg_g.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', height).attr('stroke', 'orange');
+                var lineSection = svg_g.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', componentHeight).attr('stroke', 'orange');
             }
 
             var groupIntervalItems = svg_g.selectAll('.series-interval-item').data(timelineData).enter().append('g').attr('clip-path', 'url(#' + chartContentClipPathId + ')').attr('class', 'item').attr('transform', function (d, i) {
@@ -383,7 +383,7 @@
             zoomed();
 
             if (options.enableLiveTimer) {
-                setInterval(updateNowMarker, options.timerTickInterval);
+                setInterval(updateNowMarker, options.liveTimerTickInterval);
             }
 
             function wrap(text, width, anchorPosition) {
@@ -662,13 +662,16 @@
                 var ext = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
 
                 var defaultOptions = {
+                    useLocalTimeScale: false,
                     intervalMinWidth: 8, // px
                     tipContentGenerator: undefined,
                     textTruncateThreshold: 30,
                     enableLiveTimer: false,
-                    timerTickInterval: 1000,
-                    groupHeight: 40, // px
-                    groupWidth: 300 // px
+                    liveTimerTickInterval: 1000,
+                    width: undefined,
+                    height: undefined,
+                    groupWidth: 400, // px
+                    groupHeight: 40 // px
                 };
                 Object.keys(ext).map(function (k) {
                     return defaultOptions[k] = ext[k];
