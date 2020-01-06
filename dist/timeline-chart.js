@@ -109,7 +109,7 @@
                 componentHeight = groupHeight * timelineData.length;
             }
 
-            var xTimeScaleOriginal = (options.useLocalTimeScale === true ? d3.scaleTime() : d3.scaleUtc()).domain([minDt, maxDt]).range([groupWidth, componentWidth]);
+            var xTimeScaleOriginal = (options.useUtcTimeScale === true ? d3.scaleUtc() : d3.scaleTime()).domain([minDt, maxDt]).range([groupWidth, componentWidth]);
             var xTimeScaleForContent = xTimeScaleOriginal;
 
             // X axis ticks
@@ -662,7 +662,7 @@
                 var ext = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
 
                 var defaultOptions = {
-                    useLocalTimeScale: false,
+                    useUtcTimeScale: false,
                     intervalMinWidth: 8, // px
                     tipContentGenerator: undefined,
                     textTruncateThreshold: 30,

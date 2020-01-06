@@ -47,8 +47,8 @@ Provided timeline data should match the following grammar/rules:
 
 Supported options (i.e. properties of opts) include the following:
 
-    useLocalTimeScale: <Boolean> Set to true if all times should be interpreted as local time.  
-        The default (false) is for all times to be interpreted as UTC times.
+    useUtcTimeScale: <Boolean> Set to true to treat datetime values in the input data as UTC and to plot them on a UTC time scale.
+        The default (false) is for all times to be interpreted as local/non-UTC.
     enableLiveTimer: <Boolean> Set to true if the current time should be represented on the timeline as a vertical line.
         This is disabled/false by default.
     liveTimerTickInterval: <Number> The interval (in ms) for the live timer (if enabled).  This defaults to 1000.
@@ -137,7 +137,7 @@ class TimelineChart {
             componentHeight = groupHeight * timelineData.length;
         }
 
-        let xTimeScaleOriginal = (options.useLocalTimeScale === true ? d3.scaleTime() : d3.scaleUtc())
+        let xTimeScaleOriginal = (options.useUtcTimeScale === true ? d3.scaleUtc() : d3.scaleTime() )
             .domain([minDt, maxDt])
             .range([groupWidth, componentWidth]);
         let xTimeScaleForContent = xTimeScaleOriginal;
@@ -774,7 +774,7 @@ class TimelineChart {
     }
     extendOptions(ext = {}) {
         let defaultOptions = {
-            useLocalTimeScale: false,
+            useUtcTimeScale: false,
             intervalMinWidth: 8, // px
             tipContentGenerator: undefined,
             textTruncateThreshold: 30,

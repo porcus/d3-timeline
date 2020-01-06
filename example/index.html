@@ -181,6 +181,7 @@
 
 
         const timeline = new TimelineChart(element, data, {
+            useUtcTimeScale: true,
             enableLiveTimer: true,
             tipContentGenerator: generateTipHtmlContent,
             groupWidth: 150,  // default: 400 (px)
