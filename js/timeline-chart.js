@@ -218,8 +218,8 @@ class TimelineChart {
             .attr('height', groupHeight)
             .style('fill', (d, i) => {
                 // For numeric values of grouping key, use them.  Otherwise, use the supplied index (i).
-                var index = Math.abs(Math.floor((d.groupingKey == d.groupingKey*1 ? d.groupingKey : i)%10)*2-1);
-                return d3.schemeCategory20[index];
+                var index = Math.abs(Math.floor((d.groupingKey == d.groupingKey*1 ? d.groupingKey : i)%10)-1);
+                return d3.schemePastel1[index];
             });
 
         // horizontal lines between groups.  (This used to use the 'group-section' class, but is now using the 'series' terminology.)
@@ -833,8 +833,8 @@ class TimelineChart {
 }
 
 TimelineChart.TYPE = {
-    POINT: Symbol(),
-    INTERVAL: Symbol()
+    POINT: Symbol('point'),
+    INTERVAL: Symbol('interval')
 };
 
 module.exports = TimelineChart;
