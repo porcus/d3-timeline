@@ -565,8 +565,8 @@ class TimelineChart {
         function zoomed() {
             if (self.onVizChangeFn && d3.event) {
                 self.onVizChangeFn.call(self, {
-                    scale: d3.event.scale,
-                    translate: d3.event.translate,
+                    type: d3.event.type,
+                    transform: d3.event.transform,
                     domain: xTimeScaleForContent.domain()
                 });
             }
@@ -743,7 +743,7 @@ class TimelineChart {
                 var neighborInfo = self.getSeriesNeighbors(itemToUse);
                 if (neighborInfo.nearest != null) {
                     var timeCoord = xTimeScaleForContent(itemTime);
-                    var nearestTimeCoord = xTimeScaleForContent(neighborInfo.nearest.time);
+                    var nearestTimeCoord = xTimeScaleForContent(neighborInfo.nearest.nearestTime);
                     var timeDeltaInMs = Math.abs(timeCoord - nearestTimeCoord);
                     var kNew = (20 / timeDeltaInMs) * currentTransform.k;
                     //console.log('time delta (ms): ', timeDeltaInMs, 'new k: ', kNew);
@@ -797,33 +797,36 @@ class TimelineChart {
     getItemAvgDate(p) {
         return p.type === TimelineChart.TYPE.POINT ? p.at : new Date(p.from * 1 + (p.to - p.from)/2);
     }
-    // get the previous and next dates in the series (that are not identical to the starting/ending dates of the current item)
+    // Get neighboring items (points or intervals) from within the same series.
+    // NOTE:  The  preceding "earlier" neighbor resolved should end on or before the specified item begins, 
+    //    and the following "later" neighbor resolved should start on or after the specified item ends.
+    //    If preceding or following item cannot be resolved, then null will be returned for that respective property.
     getSeriesNeighbors(item) {
         // Find an earlier item that ends before this item begins
-        var earlierEndingItem = item;
-        while(earlierEndingItem != null && earlierEndingItem.to >= item.from)
-            earlierEndingItem = earlierEndingItem.prevItem;
+        var earlierItem = item;
+        while(earlierItem != null && earlierItem.to >= item.from)
+            earlierItem = earlierItem.prevItem;
     
         // Find a later item that starts after this item ends
-        var laterStartingItem = item;
-        while(laterStartingItem != null && laterStartingItem.from <= item.to)
-            laterStartingItem = laterStartingItem.nextItem;
+        var laterItem = item;
+        while(laterItem != null && laterItem.from <= item.to)
+            laterItem = laterItem.nextItem;
 
         var result = {
-            earlier: earlierEndingItem == null ? null : {
-                item: earlierEndingItem,
-                time: earlierEndingItem.to,
-                interval:  item.from - earlierEndingItem.to
+            earlier: earlierItem == null ? null : {
+                item: earlierItem,
+                nearestTime: earlierItem.to,
+                separatingInterval:  item.from - earlierItem.to
             },
-            later: laterStartingItem == null ? null : {
-                item: laterStartingItem,
-                time: laterStartingItem.from,
-                interval: laterStartingItem.from - item.to
+            later: laterItem == null ? null : {
+                item: laterItem,
+                nearestTime: laterItem.from,
+                separatingInterval: laterItem.from - item.to
             }
         };
-        if (earlierEndingItem == null) result.nearest = result.later;
-        else if (laterStartingItem == null) result.nearest = result.earlier;
-        else result.nearest = result.earlier.interval < result.later.interval ? result.earlier : result.later;
+        if (earlierItem == null) result.nearest = result.later;
+        else if (laterItem == null) result.nearest = result.earlier;
+        else result.nearest = result.earlier.separatingInterval < result.later.separatingInterval ? result.earlier : result.later;
         return result;
     }
     onVizChange(fn) {
