@@ -1,13 +1,13 @@
 (function (global, factory) {
     if (typeof define === "function" && define.amd) {
-        define(['module'], factory);
+        define(['module', 'core-js/proposals/math-extensions'], factory);
     } else if (typeof exports !== "undefined") {
-        factory(module);
+        factory(module, require('core-js/proposals/math-extensions'));
     } else {
         var mod = {
             exports: {}
         };
-        factory(mod);
+        factory(mod, global.mathExtensions);
         global.TimelineChart = mod.exports;
     }
 })(this, function (module) {
@@ -36,6 +36,75 @@
             return Constructor;
         };
     }();
+
+    // The import above isn't working, so I must be doing something wrong.  The code for the needed function is included below.
+    if (Math.clamp === undefined) Math.clamp = function (x, lower, upper) {
+        return Math.min(upper, Math.max(lower, x));
+    };
+
+    /*
+    Provided timeline data should match the following grammar/rules:
+    
+        <timeline_data> : [ <series_data>, <series_data>, ... ]
+    
+        <series_data> :
+        {
+            label: <label-expression>,
+            data: [ <series_item>, <series_item>, ... ]
+        }
+    
+        <series_item> : <series_interval> OR <series_point>
+    
+        <series_interval> : 
+        {
+            type: TimelineChart.TYPE.INTERVAL,
+            label: <label-expression>,
+            size: <number: [0.0..1.0]>,
+            customClass: <css-class>,
+            onClick: <function>,
+            ids: [ (unique ID strings) ],
+            from: <Date>,
+            to: <Date>,
+        }
+    
+        <series_point> :
+        {
+            type: TimelineChart.TYPE.POINT,
+            label: <label>,
+            size: <number: [0.0..1.0]>,
+            customClass: <css-class>,
+            onClick: <function>,
+            ids: [ (unique ID strings) ],
+            at: <Date>,
+        }
+    
+        <label-expression> : <string>
+    
+        <css-class> : <string>
+    
+    
+    Supported options (i.e. properties of opts) include the following:
+    
+        useUtcTimeScale: <Boolean> Set to true to treat datetime values in the input data as UTC and to plot them on a UTC time scale.
+            The default (false) is for all times to be interpreted as local/non-UTC.
+        enableLiveTimer: <Boolean> Set to true if the current time should be represented on the timeline as a vertical line.
+            This is disabled/false by default.
+        liveTimerTickInterval: <Number> The interval (in ms) for the live timer (if enabled).  This defaults to 1000.
+        intervalMinWidth: <Number> The minimum width (in px) of a time interval (so it can still be seen when zoomed out).  
+            The default value is 8.
+        tipContentGenerator: <Function> A function for rendering an HTML representation of tip content for a timeline point or interval.
+            The provided argument is the data element bound to the point/interval. The result should be the HTML content to display.
+        textTruncateThreshold: 
+        width: <Number> If provided, this value will be used as the fixed width (in px) of the timeline component.  
+            If not provided, the timeline component will fill the available space of its parent element.
+        height: <Number> If provided, this value will be used as the fixed height (in px) of the timeline component.  
+            If not provided, the timeline component will fill the available space of its parent element.
+            Note that the total height of the timeline component can also be affected by the groupHeight option.
+        groupWidth: <Number> Width (in px) of the series label region on the left side of the timeline component.  
+            If not specified, it defaults to 400.
+        groupHeight: <Number> Height (in px) of each horizontal division of the timeline containing a series of data.
+            If not specified, the total available vertical space will be divided equally among each series.
+    */
 
     var TimelineChart = function () {
         function TimelineChart(element, timelineData, opts) {
@@ -214,7 +283,9 @@
                 var lineSection = svg_g.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', componentHeight).attr('stroke', 'orange');
             }
 
-            var groupIntervalItems = svg_g.selectAll('.series-interval-item').data(timelineData).enter().append('g').attr('clip-path', 'url(#' + chartContentClipPathId + ')').attr('class', 'item').attr('transform', function (d, i) {
+            var seriesIntervalGroup = svg_g.selectAll('anything')
+            //.selectAll('.series-interval-item')
+            .data(timelineData).enter().append('g').attr('clip-path', 'url(#' + chartContentClipPathId + ')').attr('class', 'item').attr('transform', function (d, i) {
                 return 'translate(0, ' + groupHeight * i + ')';
             }).selectAll('.dot').data(function (d) {
                 return d.data.filter(function (_) {
@@ -222,25 +293,30 @@
                 });
             }).enter();
 
-            var intervalBarHeight = 0.8 * groupHeight;
-            var intervalBarMargin = (groupHeight - intervalBarHeight) / 2;
-            var intervals = groupIntervalItems.append('rect').attr('class', curry(addClasses, 'interval')).attr('width', function (d) {
+            var halfSeriesRegionHeight = groupHeight / 2;
+            var seriesIntervalItems = seriesIntervalGroup.append('rect').attr('class', curry(addClasses, 'interval')).attr('width', function (d) {
                 return Math.max(options.intervalMinWidth, xTimeScaleForContent(d.to) - xTimeScaleForContent(d.from));
-            }).attr('height', intervalBarHeight).attr('y', intervalBarMargin).attr('x', function (d) {
+            }).attr('height', function (d) {
+                return Math.clamp(d.size || 0.8, 0, 1) * groupHeight;
+            }).attr('y', function (d) {
+                return halfSeriesRegionHeight - Math.clamp(d.size || 0.8, 0, 1) * halfSeriesRegionHeight;
+            }).attr('x', function (d) {
                 return xTimeScaleForContent(d.from);
             }).on('click', function (d) {
                 !d.onClick || d.onClick(d);
             });
 
             // interval text
-            var intervalTexts = groupIntervalItems.append('text').text(function (d) {
+            var intervalTexts = seriesIntervalGroup.append('text').text(function (d) {
                 return d.label || '';
             }) //  (typeof(d.label) === 'function' ? d.label(d) : d.label) || '')
             .attr('class', curry(addClasses, 'interval-text')).attr('y', groupHeight / 2 + 5).attr('x', function (d) {
                 return xTimeScaleForContent(d.from);
             });
 
-            var groupDotItems = svg_g.selectAll('.series-dot-item').data(timelineData).enter().append('g').attr('clip-path', 'url(#' + chartContentClipPathId + ')').attr('class', 'item').attr('transform', function (d, i) {
+            var seriesPointGroup = svg_g.selectAll('anything')
+            //selectAll('.series-dot-item')
+            .data(timelineData).enter().append('g').attr('clip-path', 'url(#' + chartContentClipPathId + ')').attr('class', 'item').attr('transform', function (d, i) {
                 return 'translate(0, ' + groupHeight * i + ')';
             }).selectAll('.dot').data(function (d) {
                 return d.data.filter(function (_) {
@@ -248,9 +324,13 @@
                 });
             }).enter();
 
-            var dots = groupDotItems.append('circle').attr('class', curry(addClasses, 'dot')).attr('cx', function (d) {
+            var seriesPointItems = seriesPointGroup.append('circle').attr('class', curry(addClasses, 'dot')).attr('cx', function (d) {
                 return xTimeScaleForContent(d.at);
-            }).attr('cy', groupHeight / 2).attr('r', 7).on('click', function (d) {
+            }).attr('cy', groupHeight / 2) // vertically center in series area
+            .attr('r', function (d) {
+                return Math.clamp(d.size || 0.4, 0, 1) * groupHeight / 2;
+            }) // if size is not specified, defaults to 40%
+            .on('click', function (d) {
                 !d.onClick || d.onClick(d);
             });
 
@@ -340,10 +420,11 @@
                         targetElement = null;
                     };
 
+                    var tipHideDelayInMs = 100; // consider making this an option
                     result.hideWithDelay = function () {
                         tipHideDelayTimeoutToken = setTimeout(function () {
                             result.hideNow();
-                        }, 250);
+                        }, tipHideDelayInMs);
                     };
 
                     result.show = function (d) {
@@ -376,8 +457,8 @@
 
                 // Set fn for generating tip content
                 tip.html(options.tipContentGenerator);
-                dots.on('mouseover', tip.show).on('mouseout', tip.hideWithDelay);
-                intervals.on('mouseover', tip.show).on('mouseout', tip.hideWithDelay);
+                seriesPointItems.on('mouseover', tip.show).on('mouseout', tip.hideWithDelay);
+                seriesIntervalItems.on('mouseover', tip.show).on('mouseout', tip.hideWithDelay);
             }
 
             zoomed();

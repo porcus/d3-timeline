@@ -1,21 +1,20 @@
+import 'core-js/proposals/math-extensions'
+// The import above isn't working, so I must be doing something wrong.  The code for the needed function is included below.
+if (Math.clamp === undefined) 
+    Math.clamp = function(x, lower, upper) {
+        return Math.min(upper, Math.max(lower, x));
+    };
+
 /*
 Provided timeline data should match the following grammar/rules:
 
-    <timeline_data> : 
-    [
-        <series_data>,
-        <series_data>,
-        ...
-    ]
+    <timeline_data> : [ <series_data>, <series_data>, ... ]
 
     <series_data> :
-    [
+    {
         label: <label-expression>,
-        data: 
-        [
-            <series_item>
-        ]
-    ]
+        data: [ <series_item>, <series_item>, ... ]
+    }
 
     <series_item> : <series_interval> OR <series_point>
 
@@ -23,21 +22,23 @@ Provided timeline data should match the following grammar/rules:
     {
         type: TimelineChart.TYPE.INTERVAL,
         label: <label-expression>,
-        from: <Date>,
-        to: <Date>,
+        size: <number: [0.0..1.0]>,
         customClass: <css-class>,
         onClick: <function>,
-        ids: [ (unique ID strings) ]
+        ids: [ (unique ID strings) ],
+        from: <Date>,
+        to: <Date>,
     }
 
     <series_point> :
     {
-        type: TimelineChart.TYPE.INTERVAL,
+        type: TimelineChart.TYPE.POINT,
         label: <label>,
-        at: <Date>,
+        size: <number: [0.0..1.0]>,
         customClass: <css-class>,
         onClick: <function>,
-        ids: [ (unique ID strings) ]
+        ids: [ (unique ID strings) ],
+        at: <Date>,
     }
 
     <label-expression> : <string>
@@ -307,7 +308,8 @@ class TimelineChart {
             let lineSection = svg_g.append('line').attr('x1', groupWidth).attr('x2', groupWidth).attr('y1', 0).attr('y2', componentHeight).attr('stroke', 'orange');
         }
 
-        let groupIntervalItems = svg_g.selectAll('.series-interval-item')
+        let seriesIntervalGroup = svg_g.selectAll('anything')
+        //.selectAll('.series-interval-item')
             .data(timelineData)
             .enter()
             .append('g')
@@ -318,26 +320,26 @@ class TimelineChart {
             .data(d => d.data.filter(_ => _.type === TimelineChart.TYPE.INTERVAL))
             .enter();
 
-        let intervalBarHeight = 0.8 * groupHeight;
-        let intervalBarMargin = (groupHeight - intervalBarHeight) / 2;
-        let intervals = groupIntervalItems
+        let halfSeriesRegionHeight = groupHeight / 2;
+        let seriesIntervalItems = seriesIntervalGroup
             .append('rect')
             .attr('class', curry(addClasses, 'interval'))
             .attr('width', (d) => Math.max(options.intervalMinWidth, xTimeScaleForContent(d.to) - xTimeScaleForContent(d.from)))
-            .attr('height', intervalBarHeight)
-            .attr('y', intervalBarMargin)
+            .attr('height', (d) => Math.clamp(d.size || 0.8, 0, 1) * groupHeight)
+            .attr('y', (d) => halfSeriesRegionHeight - (Math.clamp(d.size || 0.8, 0, 1) * halfSeriesRegionHeight))
             .attr('x', (d) => xTimeScaleForContent(d.from))
             .on('click', (d) => { !d.onClick || d.onClick(d); });
 
         // interval text
-        let intervalTexts = groupIntervalItems
+        let intervalTexts = seriesIntervalGroup
             .append('text')
             .text(d => d.label || '')  //  (typeof(d.label) === 'function' ? d.label(d) : d.label) || '')
             .attr('class', curry(addClasses, 'interval-text'))
             .attr('y', (groupHeight / 2) + 5)
             .attr('x', (d) => xTimeScaleForContent(d.from));
 
-        let groupDotItems = svg_g.selectAll('.series-dot-item')
+        let seriesPointGroup = svg_g.selectAll('anything')
+        //selectAll('.series-dot-item')
             .data(timelineData)
             .enter()
             .append('g')
@@ -350,12 +352,12 @@ class TimelineChart {
             })
             .enter();
 
-        let dots = groupDotItems
+        let seriesPointItems = seriesPointGroup
             .append('circle')
             .attr('class', curry(addClasses, 'dot'))
-            .attr('cx', d => xTimeScaleForContent(d.at))
-            .attr('cy', groupHeight / 2)
-            .attr('r', 7)
+            .attr('cx', (d) => xTimeScaleForContent(d.at))
+            .attr('cy', groupHeight / 2) // vertically center in series area
+            .attr('r', (d) => Math.clamp(d.size || 0.4, 0, 1) * groupHeight / 2)  // if size is not specified, defaults to 40%
             .on('click', (d) => { !d.onClick || d.onClick(d); });
 
         // If set, options.tipContentGenerator should have the following form: function(timelineObjectForWhichToRenderTipContent)
@@ -446,10 +448,11 @@ class TimelineChart {
                     targetElement = null;
                 };
 
+                var tipHideDelayInMs = 100; // consider making this an option
                 result.hideWithDelay = function() {
                     tipHideDelayTimeoutToken = setTimeout(() => {
                         result.hideNow();
-                    }, 250);
+                    }, tipHideDelayInMs);
                 };
 
                 result.show = function(d) {
@@ -490,8 +493,8 @@ class TimelineChart {
 
             // Set fn for generating tip content
             tip.html(options.tipContentGenerator);
-            dots.on('mouseover', tip.show).on('mouseout', tip.hideWithDelay);
-            intervals.on('mouseover', tip.show).on('mouseout', tip.hideWithDelay);
+            seriesPointItems.on('mouseover', tip.show).on('mouseout', tip.hideWithDelay);
+            seriesIntervalItems.on('mouseover', tip.show).on('mouseout', tip.hideWithDelay);
         }
 
         zoomed();

@@ -28,5 +28,8 @@
     "karma-chrome-launcher": "^0.2.2",
     "karma-jasmine": "^0.3.7",
     "karma-mocha-reporter": "^1.2.0"
+  },
+  "dependencies": {
+    "core-js": "^3.6.2"
   }
 }
