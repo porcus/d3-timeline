@@ -420,7 +420,7 @@
                         targetElement = null;
                     };
 
-                    var tipHideDelayInMs = 100; // consider making this an option
+                    var tipHideDelayInMs = 10; // consider making this an option
                     result.hideWithDelay = function () {
                         tipHideDelayTimeoutToken = setTimeout(function () {
                             result.hideNow();
