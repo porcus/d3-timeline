@@ -49,7 +49,9 @@
     
         <series_data> :
         {
+            groupingKey: <string>,  // a key value which will be used to set the background color of the series rendering area in order to cause items with the same key to have the same background color (for visual grouping)
             label: <label-expression>,
+            labelCustomClass: <css-class>,  // a custom class that is applied only to the label's text element
             data: [ <series_item>, <series_item>, ... ]
         }
     
@@ -119,6 +121,7 @@
             var options = this.extendOptions(opts);
 
             timelineData.forEach(function (series) {
+                series.data = series.data || [];
                 // Normalize data with respect to at/from/to temporal properties
                 series.data.forEach(function (item) {
                     item.at = self.getItemAvgDate(item);
@@ -272,7 +275,9 @@
 
             // heading / label text (for each series)
             if (options.groupWidth > 0) {
-                var groupLabels = svg_g.selectAll('.series-label').data(timelineData).enter().append('text').attr('class', 'series-label').attr('x', '0.5em') //0)
+                var seriesLabels = svg_g.selectAll('.series-label').data(timelineData).enter().append('text').attr('class', function (d) {
+                    return 'series-label ' + (d.labelCustomClass ? d.labelCustomClass : '');
+                }).attr('x', '0.5em') //0)
                 .attr('y', function (d, i) {
                     return groupHeight * i + groupHeight / 2; //+ 5.5;
                 }).attr('dx', '0.5em').attr('dy', '.4em') //'-.1em')  //'0.5em')

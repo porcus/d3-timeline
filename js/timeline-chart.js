@@ -12,7 +12,9 @@ Provided timeline data should match the following grammar/rules:
 
     <series_data> :
     {
+        groupingKey: <string>,  // a key value which will be used to set the background color of the series rendering area in order to cause items with the same key to have the same background color (for visual grouping)
         label: <label-expression>,
+        labelCustomClass: <css-class>,  // a custom class that is applied only to the label's text element
         data: [ <series_item>, <series_item>, ... ]
     }
 
@@ -80,6 +82,7 @@ class TimelineChart {
         let options = this.extendOptions(opts);
 
         timelineData.forEach(series => {
+            series.data = series.data || [];
             // Normalize data with respect to at/from/to temporal properties
             series.data.forEach(item => {
                 item.at = self.getItemAvgDate(item);
@@ -291,11 +294,11 @@ class TimelineChart {
 
         // heading / label text (for each series)
         if (options.groupWidth > 0) {
-            let groupLabels = svg_g.selectAll('.series-label')
+            let seriesLabels = svg_g.selectAll('.series-label')
                 .data(timelineData)
                 .enter()
                 .append('text')
-                .attr('class', 'series-label')
+                .attr('class', d => 'series-label '+ (d.labelCustomClass ? d.labelCustomClass : ''))
                 .attr('x', '0.5em') //0)
                 .attr('y', (d, i) => {
                     return (groupHeight * i) + (groupHeight / 2) ; //+ 5.5;
