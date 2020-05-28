@@ -450,11 +450,13 @@
                         // Update the content of the tooltip by regenerating it to match the current data.
                         var html = tipContentGenerator(d);
                         var tt = getToolTip();
-                        tt.updateTitleContent(html);
-                        // show
-                        tt.show();
-                        tipIsShowing = true;
-                        targetElement = this;
+                        if (tt) {
+                            tt.updateTitleContent(html);
+                            // show
+                            tt.show();
+                            tipIsShowing = true;
+                            targetElement = this;
+                        }
                     };
 
                     return result;
